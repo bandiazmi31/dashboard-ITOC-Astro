@@ -1,0 +1,66 @@
+---
+interface Props {
+  id: string;
+  type: 'line' | 'bar';
+  title: string;
+  labels: string[];
+  datasets: Array<{
+    label: string;
+    data: number[];
+    borderColor?: string;
+    backgroundColor?: string;
+    fill?: boolean;
+  }>;
+}
+
+const { id, type, title, labels, datasets } = Astro.props;
+---
+
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900 p-4">
+  <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">{title}</h3>
+  <canvas id={id} data-type={type} data-labels={JSON.stringify(labels)} data-datasets={JSON.stringify(datasets)}></canvas>
+  <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+    <a href="#" class="text-blue-600 dark:text-blue-400 hover:underline">Lihat sebagai tabel</a>
+  </p>
+</div>
+
+<script>
+  import Chart from 'chart.js/auto';
+
+  document.querySelectorAll('canvas[data-labels]').forEach((canvas) => {
+    const ctx = (canvas as HTMLCanvasElement).getContext('2d');
+    if (!ctx) return;
+
+    const type = canvas.getAttribute('data-type') as 'line' | 'bar';
+    const labels = JSON.parse(canvas.getAttribute('data-labels') || '[]');
+    const datasets = JSON.parse(canvas.getAttribute('data-datasets') || '[]');
+
+    new Chart(ctx, {
+      type: type,
+      data: {
+        labels: labels,
+        datasets: datasets.map((ds: any) => ({
+          ...ds,
+          tension: 0.4,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+        }))
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: {
+            display: true,
+            position: 'top'
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true
+          }
+        }
+      }
+    });
+  });
+</script>

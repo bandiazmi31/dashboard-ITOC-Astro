@@ -1,0 +1,83 @@
+---
+import type { AstroComponentFactory } from 'astro';
+import ThemeToggle from '../components/ThemeToggle.astro';
+
+const currentPath = Astro.url.pathname;
+---
+
+<html lang="id" class="h-full scroll-smooth">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ITOC Dashboard</title>
+  </head>
+  <body class="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white transition-colors">
+    <!-- Header -->
+    <header class="bg-white dark:bg-gray-800 shadow-md p-3 sm:p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-gray-200 dark:border-gray-700">
+      <div class="flex items-center space-x-2">
+        <span class="text-lg sm:text-xl font-semibold text-primary">Dashboard ITOC</span>
+      </div>
+      <div class="flex items-center space-x-2 sm:space-x-4 text-xs sm:text-sm">
+        <span class="truncate">User Name</span>
+        <ThemeToggle />
+        <a href="/logout" class="text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap">Keluar</a>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
+        <ul class="flex flex-wrap space-x-2 sm:space-x-6 px-2 sm:px-4 py-2 min-w-min">
+          <li class="mr-2">
+          <a href="/" class={currentPath === '/' ? 'text-blue-600 dark:text-blue-400 font-semibold border-b-2 border-blue-600 dark:border-blue-400 pb-1' : 'text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400'}>
+            Ringkasan
+          </a>
+        </li>
+        <li class="mr-2">
+          <a href="/soc" class={currentPath === '/soc' ? 'text-blue-600 dark:text-blue-400 font-semibold border-b-2 border-blue-600 dark:border-blue-400 pb-1' : 'text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400'}>
+            SOC
+          </a>
+        </li>
+        <li class="mr-2">
+          <a href="/noc" class={currentPath === '/noc' ? 'text-blue-600 dark:text-blue-400 font-semibold border-b-2 border-blue-600 dark:border-blue-400 pb-1' : 'text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400'}>
+            NOC
+          </a>
+        </li>
+        <li class="mr-2">
+          <a href="/kelengkapan-data" class={currentPath === '/kelengkapan-data' ? 'text-blue-600 dark:text-blue-400 font-semibold border-b-2 border-blue-600 dark:border-blue-400 pb-1' : 'text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400'}>
+            Kelengkapan Data
+          </a>
+        </li>
+        <li class="mr-2">
+          <a href="/admin" class={currentPath === '/admin' ? 'text-blue-600 dark:text-blue-400 font-semibold border-b-2 border-blue-600 dark:border-blue-400 pb-1' : 'text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400'}>
+              Admin
+            </a>
+          </li>
+        </ul>
+    </nav>
+
+    <!-- Filter Bar -->
+    <section class="bg-gray-100 dark:bg-gray-800 p-2 sm:p-3 flex flex-wrap gap-2 items-center text-xs sm:text-sm border-b border-gray-200 dark:border-gray-700">
+      <label class="font-medium text-gray-700 dark:text-gray-300">Dari:</label>
+      <input type="date" class="border dark:border-gray-600 rounded px-2 py-1 text-xs bg-white dark:bg-gray-700 dark:text-white" />
+      <label class="font-medium text-gray-700 dark:text-gray-300">Sampai:</label>
+      <input type="date" class="border dark:border-gray-600 rounded px-2 py-1 text-xs bg-white dark:bg-gray-700 dark:text-white" />
+      <select class="border dark:border-gray-600 rounded px-2 py-1 text-xs bg-white dark:bg-gray-700 dark:text-white">
+        <option>Semua data</option>
+        <option>7 hari terakhir</option>
+        <option>30 hari terakhir</option>
+      </select>
+      <button class="bg-primary text-white px-2 sm:px-3 py-1 rounded text-xs font-medium hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500">Terapkan</button>
+      <button class="bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 px-2 sm:px-3 py-1 rounded text-xs font-medium hover:bg-gray-400 dark:hover:bg-gray-500">Reset</button>
+    </section>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-3 sm:p-6">
+      <slot />
+    </main>
+
+    <!-- Footer (optional) -->
+    <footer class="bg-white dark:bg-gray-800 text-center py-2 text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700">
+      © 2026 PT Pelindo Multi Terminal
+    </footer>
+  </body>
+</html>

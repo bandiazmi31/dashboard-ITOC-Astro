@@ -1,0 +1,33 @@
+---
+interface Props {
+  label: string;
+  value: string | number;
+  unit?: string;
+  status?: 'safe' | 'warning' | 'critical' | 'info';
+  badgeText?: string;
+}
+
+const { label, value, unit = '', status = 'info', badgeText } = Astro.props;
+
+const badgeClasses = {
+  safe: 'bg-green-100 text-green-800',
+  warning: 'bg-yellow-100 text-yellow-800',
+  critical: 'bg-red-100 text-red-800',
+  info: 'bg-gray-100 text-gray-800'
+};
+---
+
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900 p-3 sm:p-4 border-l-4" class:list={[status === 'safe' ? 'border-green-500' : status === 'critical' ? 'border-red-500' : 'border-gray-300 dark:border-gray-600']}>
+  <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 font-medium">{label}</p>
+  <div class="flex justify-between items-start sm:items-center mt-2 gap-2">
+    <div class="flex-1">
+      <p class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{value}</p>
+      {unit && <p class="text-xs text-gray-500 dark:text-gray-400">{unit}</p>}
+    </div>
+    {badgeText && (
+      <span class={`px-2 py-1 rounded text-xs font-semibold whitespace-nowrap ${badgeClasses[status]}`}>
+        {badgeText}
+      </span>
+    )}
+  </div>
+</div>

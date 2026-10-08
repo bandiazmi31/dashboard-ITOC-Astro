@@ -1,0 +1,214 @@
+---
+import Layout from '../layouts/Layout.astro';
+import KPICard from '../components/KPICard.astro';
+import Chart from '../components/Chart.astro';
+import TopNTable from '../components/TopNTable.astro';
+import { socAnalytics } from '../data/soc';
+import { createSupabaseServerClient } from '../lib/supabase';
+import { getSocTrends } from '../lib/services/analytics';
+
+// Calculate default date range (last 7 days)
+const today = new Date();
+const sevenDaysAgo = new Date(today);
+sevenDaysAgo.setDate(today.getDate() - 7);
+
+const from = sevenDaysAgo.toISOString().split('T')[0];
+const to = today.toISOString().split('T')[0];
+
+// Initialize Supabase client
+const supabase = createSupabaseServerClient(Astro.cookies);
+
+// Verify authenticated user
+const { data: { user } } = await supabase.auth.getUser();
+
+if (!user) {
+  console.log('[SOC] User not authenticated, redirecting to /login');
+  Astro.redirect('/login');
+}
+
+// Fetch live SOC trends data
+let socData = {
+  dates: [],
+  threats_all: [],
+  threats_high_critical: [],
+  traffic_tb: [],
+  kpi: {
+    totalThreats: 0,
+    highCriticalThreats: 0,
+    highCriticalPercentage: 0,
+    blockedThreatsCount: 0,
+    blockedThreatsPercentage: 0,
+    firewallTrafficTB: 0,
+    firewallSessions: '0'
+  },
+  status: 'mock'
+};
+
+let databaseError = false;
+
+try {
+  socData = await getSocTrends(supabase, { from, to });
+} catch (err) {
+  console.error('[SOC] Failed to fetch from Supabase:', err.message);
+  databaseError = true;
+  
+  // Fallback to mock data with same structure
+  const { socSummary } = await import('../data/soc');
+  socData = {
+    dates: socSummary.trendDaily.map(d => d.date),
+    threats_all: socSummary.trendDaily.map(d => d.all),
+    threats_high_critical: socSummary.trendDaily.map(d => d.high),
+    traffic_tb: socSummary.trafficDaily.map(d => d.tb),
+    kpi: {
+      totalThreats: socSummary.totalThreats,
+      highCriticalThreats: socSummary.highCriticalThreats,
+      highCriticalPercentage: socSummary.highCriticalPercentage,
+      blockedThreatsCount: socSummary.blockedThreatsCount,
+      blockedThreatsPercentage: socSummary.blockedThreatsPercentage,
+      firewallTrafficTB: socSummary.firewallTrafficTB,
+      firewallSessions: socSummary.firewallSessions
+    },
+    status: 'mock'
+  };
+}
+---
+
+<Layout>
+  <div class="space-y-6">
+    {databaseError && (
+      <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+        <p class="text-sm text-yellow-800">
+          <strong>⚠️ Peringatan:</strong> Koneksi database terputus. Menampilkan data fallback (offline).
+        </p>
+      </div>
+    )}
+
+    <!-- KPI Cards Row -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <KPICard 
+        label="Total Kejadian Ancaman" 
+        value={socData.kpi.totalThreats}
+        status="info"
+      />
+      <KPICard 
+        label="High/Critical Threats" 
+        value={socData.kpi.highCriticalThreats}
+        unit={`(${socData.kpi.highCriticalPercentage}%)`}
+        status={socData.kpi.highCriticalPercentage > 5 ? 'warning' : 'safe'}
+      />
+      <KPICard 
+        label="Ancaman Diblokir" 
+        value={`${socData.kpi.blockedThreatsPercentage}%`}
+        unit={`(${socData.kpi.blockedThreatsCount} kejadian)`}
+        status="safe"
+      />
+      <KPICard 
+        label="Volume Trafik Firewall" 
+        value={socData.kpi.firewallTrafficTB}
+        unit={`TB / ${socData.kpi.firewallSessions} sesi`}
+        status="info"
+      />
+    </div>
+
+    <!-- Data Status Indicator -->
+    <div class="text-xs text-gray-500 dark:text-gray-400">
+      {socData.status === 'live' 
+        ? '📊 Data dari Supabase (Real-time)' 
+        : '⚠️ Data fallback (Database tidak tersedia)'}
+    </div>
+
+    <!-- Trend Charts (2 columns) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <Chart 
+        id="socThreatTrendChart"
+        type="line"
+        title="Kejadian Ancaman per Hari"
+        labels={socData.dates}
+        datasets={[
+          {
+            label: 'Semua Ancaman',
+            data: socData.threats_all,
+            borderColor: '#6366f1',
+            tension: 0.4,
+            fill: false
+          },
+          {
+            label: 'High/Critical',
+            data: socData.threats_high_critical,
+            borderColor: '#ef4444',
+            tension: 0.4,
+            fill: false
+          }
+        ]}
+      />
+      
+      <Chart 
+        id="socTrafficTrendChart"
+        type="line"
+        title="Volume Trafik per Hari"
+        labels={socData.dates}
+        datasets={[
+          {
+            label: 'Trafik (TB)',
+            data: socData.traffic_tb,
+            borderColor: '#10b981',
+            tension: 0.4,
+            fill: false
+          }
+        ]}
+      />
+    </div>
+
+    <!-- Analytics Tables (2 columns, 3 rows) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <TopNTable 
+        title="Menurut Severity"
+        columns={['Severity', 'Jumlah', 'Persentase']}
+        data={socAnalytics.bySeverity}
+        barColumn="percentage"
+        colorMapping="severity"
+        limit={10}
+      />
+      
+      <TopNTable 
+        title="Nama Ancaman High/Critical Teratas"
+        columns={['Nama Ancaman', 'Kejadian', '%']}
+        data={socAnalytics.highCriticalThreats}
+        barColumn="percentage"
+        limit={10}
+      />
+      
+      <TopNTable 
+        title="Kategori URL Ancaman Teratas"
+        columns={['Kategori', 'Kejadian', '%']}
+        data={socAnalytics.threatUrlCategories}
+        barColumn="percentage"
+        limit={10}
+      />
+      
+      <TopNTable 
+        title="Host Internal dengan Ancaman Terbanyak"
+        columns={['IP Address', 'Hostname', 'Kejadian', '%']}
+        data={socAnalytics.internalHostsWithThreats}
+        barColumn="percentage"
+        limit={10}
+      />
+      
+      <TopNTable 
+        title="Sumber High/Critical Teratas"
+        columns={['IP Address', 'Negara', 'Kejadian', '%']}
+        data={socAnalytics.highCriticalSources}
+        barColumn="percentage"
+        limit={10}
+      />
+      
+      <TopNTable 
+        title="Aplikasi dengan Trafik Terbesar"
+        columns={['Aplikasi', 'Volume (GB)', '%']}
+        data={socAnalytics.topApplicationsByTraffic}
+        barColumn="percentage"
+        limit={10}
+      />
+    </div>
+  </div>
+</Layout>

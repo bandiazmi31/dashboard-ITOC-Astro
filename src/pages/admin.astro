@@ -1,0 +1,136 @@
+---
+import Layout from '../layouts/Layout.astro';
+import HandoverWidget from '../components/HandoverWidget.astro';
+---
+
+<Layout>
+  <div class="space-y-6">
+    <!-- Page Title -->
+    <div>
+      <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Admin</h2>
+      <p class="text-sm text-gray-600 dark:text-gray-300 mt-1">Panel pengaturan sistem dan sinkronisasi data.</p>
+    </div>
+
+    <!-- Handover Widget -->
+    <HandoverWidget />
+
+    <!-- Coverage Threshold Settings -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900 p-6">
+      <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Batas Cakupan Sensor</h3>
+      
+      <div class="max-w-md space-y-4">
+        <div>
+          <label for="coverage-threshold" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Batas Cakupan Minimum (%)
+          </label>
+          <input 
+            type="number" 
+            id="coverage-threshold" 
+            value="95" 
+            min="0" 
+            max="100" 
+            class="w-full px-3 py-2 border dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          />
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Jika cakupan sensor di bawah nilai ini, warning banner akan muncul di halaman NOC dan Kelengkapan Data.
+          </p>
+        </div>
+
+        <div>
+          <label for="soc-truncation-limit" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Batas Potongan File SOC (baris)
+          </label>
+          <input 
+            type="number" 
+            id="soc-truncation-limit" 
+            value="10000" 
+            class="w-full px-3 py-2 border dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          />
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Jika file SOC melebihi batas ini, status akan ditandai sebagai "terpotong" di halaman Kelengkapan Data.
+          </p>
+        </div>
+
+        <button class="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition">
+          Simpan Pengaturan
+        </button>
+      </div>
+    </div>
+
+    <!-- Sync Trigger Settings -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900 p-6">
+      <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Sinkronisasi Data</h3>
+      
+      <div class="space-y-4">
+        <div class="flex items-start justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50/50 dark:bg-gray-900/50">
+          <div class="flex-1">
+            <h4 class="text-sm font-medium text-gray-900 dark:text-white">Sinkronisasi Manual ManageEngine</h4>
+            <p class="text-xs text-gray-600 dark:text-gray-400 mt-1">Ambil data tiket terbaru dari ManageEngine ServiceDesk Plus.</p>
+          </div>
+          <button class="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition">
+            Sync Sekarang
+          </button>
+        </div>
+
+        <div class="flex items-start justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50/50 dark:bg-gray-900/50">
+          <div class="flex-1">
+            <h4 class="text-sm font-medium text-gray-900 dark:text-white">Sinkronisasi Manual PRTG</h4>
+            <p class="text-xs text-gray-600 dark:text-gray-400 mt-1">Impor data sensor dari file PDF PRTG terbaru.</p>
+          </div>
+          <button class="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition">
+            Sync Sekarang
+          </button>
+        </div>
+
+        <div class="flex items-start justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50/50 dark:bg-gray-900/50">
+          <div class="flex-1">
+            <h4 class="text-sm font-medium text-gray-900 dark:text-white">Sinkronisasi Manual Palo Alto</h4>
+            <p class="text-xs text-gray-600 dark:text-gray-400 mt-1">Ambil data laporan firewall Palo Alto terbaru.</p>
+          </div>
+          <button class="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition">
+            Sync Sekarang
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Summary Settings -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900 p-6">
+      <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Ringkasan Otomatis (Temuan Utama)</h3>
+      
+      <div class="max-w-md space-y-4">
+        <div>
+          <label for="ai-model" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Model AI
+          </label>
+          <select class="w-full px-3 py-2 border dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+            <option value="qwen">Qwen (Lokal)</option>
+            <option value="gpt-4">GPT-4</option>
+            <option value="gpt-35">GPT-3.5</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="ai-frequency" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Frekuensi Pembuatan Ringkasan
+          </label>
+          <select class="w-full px-3 py-2 border dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+            <option value="daily">Harian</option>
+            <option value="shift">Per Shift</option>
+          </select>
+        </div>
+
+        <div class="flex items-center">
+          <input type="checkbox" id="enable-ai-summary" class="mr-2" checked />
+          <label for="enable-ai-summary" class="text-sm text-gray-700 dark:text-gray-300">
+            Aktifkan Pembuatan Ringkasan Otomatis via n8n
+          </label>
+        </div>
+
+        <button class="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition">
+          Simpan Pengaturan AI
+        </button>
+      </div>
+    </div>
+  </div>
+</Layout>
