@@ -3,17 +3,19 @@ import Layout from '../layouts/Layout.astro';
 import KPICard from '../components/KPICard.astro';
 import Chart from '../components/Chart.astro';
 import TopNTable from '../components/TopNTable.astro';
+import DateFilter from '../components/DateFilter.astro';
 import { socAnalytics } from '../data/soc';
 import { createSupabaseServerClient } from '../lib/supabase';
 import { getSocTrends } from '../lib/services/analytics';
 
-// Calculate default date range (last 7 days)
+// Get query params for date range, or default to last 7 days
+const url = new URL(Astro.request.url);
 const today = new Date();
 const sevenDaysAgo = new Date(today);
 sevenDaysAgo.setDate(today.getDate() - 7);
 
-const from = sevenDaysAgo.toISOString().split('T')[0];
-const to = today.toISOString().split('T')[0];
+const from = url.searchParams.get('from') || sevenDaysAgo.toISOString().split('T')[0];
+const to = url.searchParams.get('to') || today.toISOString().split('T')[0];
 
 // Initialize Supabase client
 const supabase = createSupabaseServerClient(Astro.cookies);
@@ -75,6 +77,11 @@ try {
 
 <Layout>
   <div class="space-y-6">
+    <DateFilter 
+      from={from} 
+      to={to}
+    />
+
     {databaseError && (
       <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
         <p class="text-sm text-yellow-800">
