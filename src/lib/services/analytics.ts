@@ -100,26 +100,55 @@ export async function getSocTrends(
   };
 }
 
+export interface NocTrendsResult {
+  dates: string[];
+  astinet: number[];
+  jlm: number[];
+  lintasarta: number[];
+  traffic_mbps: number[];
+  kpi: {
+    ispAvailability: Array<{
+      name: string;
+      sla: number;
+      actual: number;
+      status: 'safe' | 'critical';
+    }>;
+  };
+  devices: any[]; // Added for table data
+  status: 'live' | 'mock';
+}
+
+function getIspFromSensor(name: string, device: string): string {
+  const n = name.toLowerCase();
+  if (n.includes('astinet')) return 'Astinet';
+  if (n.includes('jlm')) return 'JLM';
+  if (n.includes('lintasarta')) return 'Lintasarta';
+  
+  // Fallback map
+  const deviceMap: Record<string, string> = {
+    'Benoa': 'Astinet',
+    // add more as needed
+  };
+  return deviceMap[device] || 'Unknown';
+}
+
 export async function getNocTrends(
   supabase: SupabaseClient,
   params: TrendsParams
 ): Promise<NocTrendsResult> {
   const { from, to } = params;
 
-  const { data, error } = await supabase
-    .from('noc_availability_daily')
+  const { data: prtgData, error } = await supabase
+    .from('prtg_sensor_reports')
     .select('*')
-    .gte('date', from)
-    .lte('date', to)
-    .order('date', { ascending: true });
+    .gte('import_date', from)
+    .lte('import_date', to);
 
-  if (error || !data || data.length === 0) {
-    throw new Error(error?.message || 'No data found in Supabase');
+  if (error || !prtgData) {
+    throw new Error(error?.message || 'No PRTG data found in Supabase');
   }
 
-  const dateSet = new Set<string>();
-  data.forEach((d: any) => dateSet.add(d.date));
-  const dates = Array.from(dateSet).sort();
+  const dates = Array.from(new Set(prtgData.map((d: any) => d.import_date))).sort();
 
   const astinet: number[] = [];
   const jlm: number[] = [];
@@ -127,29 +156,37 @@ export async function getNocTrends(
   const traffic_mbps: number[] = [];
 
   dates.forEach(date => {
-    const dayData = data.filter((d: any) => d.date === date);
+    const dayData = prtgData.filter((d: any) => d.import_date === date);
     
-    const astinetRecord = dayData.find((d: any) => d.isp_name === 'Astinet');
-    const jlmRecord = dayData.find((d: any) => d.isp_name === 'JLM');
-    const lintasartaRecord = dayData.find((d: any) => d.isp_name === 'Lintasarta');
+    const ispStats: Record<string, { totalUp: number, totalDown: number, traffic: number, count: number }> = {
+      'Astinet': { totalUp: 0, totalDown: 0, traffic: 0, count: 0 },
+      'JLM': { totalUp: 0, totalDown: 0, traffic: 0, count: 0 },
+      'Lintasarta': { totalUp: 0, totalDown: 0, traffic: 0, count: 0 }
+    };
 
-    astinet.push(astinetRecord ? Number(astinetRecord.availability_percent) : 0);
-    jlm.push(jlmRecord ? Number(jlmRecord.availability_percent) : 0);
-    lintasarta.push(lintasartaRecord ? Number(lintasartaRecord.availability_percent) : 0);
-    
-    const dayTraffic = dayData.reduce((sum: number, d: any) => sum + Number(d.traffic_mbps), 0);
-    traffic_mbps.push(dayTraffic);
+    dayData.forEach((d: any) => {
+      const isp = getIspFromSensor(d.sensor_name, d.device);
+      if (ispStats[isp]) {
+        ispStats[isp].totalUp += Number(d.up_detik);
+        ispStats[isp].totalDown += Number(d.down_detik);
+        ispStats[isp].traffic += Number(d.avg_total_mbit);
+        ispStats[isp].count += 1;
+      }
+    });
+
+    const getAv = (i: string) => {
+      const s = ispStats[i];
+      const total = s.totalUp + s.totalDown;
+      return total === 0 ? 0 : (s.totalUp / total) * 100;
+    };
+
+    astinet.push(Number(getAv('Astinet').toFixed(2)));
+    jlm.push(Number(getAv('JLM').toFixed(2)));
+    lintasarta.push(Number(getAv('Lintasarta').toFixed(2)));
+    traffic_mbps.push(Number((ispStats['Astinet'].traffic + ispStats['JLM'].traffic + ispStats['Lintasarta'].traffic).toFixed(2)));
   });
 
-  const astinetAvg = astinet.length > 0 ? astinet.reduce((a, b) => a + b, 0) / astinet.length : 0;
-  const jlmAvg = jlm.length > 0 ? jlm.reduce((a, b) => a + b, 0) / jlm.length : 0;
-  const lintasartaAvg = lintasarta.length > 0 ? lintasarta.reduce((a, b) => a + b, 0) / lintasarta.length : 0;
-
-  const SLA_CONFIG = {
-    'Astinet': 99.5,
-    'JLM': 99.0,
-    'Lintasarta': 99.5
-  };
+  const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
 
   return {
     dates,
@@ -157,26 +194,18 @@ export async function getNocTrends(
     jlm,
     lintasarta,
     traffic_mbps,
+    devices: prtgData.map(d => ({
+      date: d.import_date,
+      sensor: d.sensor_name,
+      device: d.device,
+      availability: ((Number(d.up_detik) / (Number(d.up_detik) + Number(d.down_detik))) * 100).toFixed(2),
+      traffic: d.avg_total_mbit
+    })),
     kpi: {
       ispAvailability: [
-        {
-          name: 'Astinet',
-          sla: SLA_CONFIG['Astinet'],
-          actual: Number(astinetAvg.toFixed(2)),
-          status: astinetAvg >= SLA_CONFIG['Astinet'] ? 'safe' : 'critical'
-        },
-        {
-          name: 'JLM',
-          sla: SLA_CONFIG['JLM'],
-          actual: Number(jlmAvg.toFixed(2)),
-          status: jlmAvg >= SLA_CONFIG['JLM'] ? 'safe' : 'critical'
-        },
-        {
-          name: 'Lintasarta',
-          sla: SLA_CONFIG['Lintasarta'],
-          actual: Number(lintasartaAvg.toFixed(2)),
-          status: lintasartaAvg >= SLA_CONFIG['Lintasarta'] ? 'safe' : 'critical'
-        }
+        { name: 'Astinet', sla: 99.5, actual: Number(avg(astinet).toFixed(2)), status: avg(astinet) >= 99.5 ? 'safe' : 'critical' },
+        { name: 'JLM', sla: 99.0, actual: Number(avg(jlm).toFixed(2)), status: avg(jlm) >= 99.0 ? 'safe' : 'critical' },
+        { name: 'Lintasarta', sla: 99.5, actual: Number(avg(lintasarta).toFixed(2)), status: avg(lintasarta) >= 99.5 ? 'safe' : 'critical' }
       ]
     },
     status: 'live'
