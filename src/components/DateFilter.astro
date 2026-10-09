@@ -1,0 +1,90 @@
+---
+interface Props {
+  from: string;
+  to: string;
+}
+
+const { from, to } = Astro.props;
+---
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
+
+<form id="dateFilterForm" class="flex flex-col sm:flex-row gap-3 items-start sm:items-center py-3 border-b border-gray-200 dark:border-gray-700">
+  <div class="flex items-center gap-2">
+    <label class="text-sm font-medium text-gray-700 dark:text-gray-300" for="from">Dari:</label>
+    <input
+      type="text"
+      name="from"
+      id="from"
+      value={from}
+      class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-white"
+      readonly
+    />
+  </div>
+  <div class="flex items-center gap-2">
+    <label class="text-sm font-medium text-gray-700 dark:text-gray-300" for="to">Sampai:</label>
+    <input
+      type="text"
+      name="to"
+      id="to"
+      value={to}
+      class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-white"
+      readonly
+    />
+  </div>
+  <button
+    type="submit"
+    class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+  >
+    Terapkan
+  </button>
+  <button
+    type="button"
+    id="resetBtn"
+    class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+  >
+    Reset
+  </button>
+</form>
+
+<script>
+  import flatpickr from 'flatpickr';
+
+  const form = document.getElementById('dateFilterForm') as HTMLFormElement;
+  const fromInput = document.getElementById('from') as HTMLInputElement;
+  const toInput = document.getElementById('to') as HTMLInputElement;
+  const resetBtn = document.getElementById('resetBtn') as HTMLButtonElement;
+
+  const isDark = document.documentElement.classList.contains('dark');
+
+  flatpickr(fromInput, {
+    dateFormat: 'Y-m-d',
+    defaultDate: fromInput.value,
+    theme: isDark ? 'dark' : 'light'
+  });
+
+  flatpickr(toInput, {
+    dateFormat: 'Y-m-d',
+    defaultDate: toInput.value,
+    theme: isDark ? 'dark' : 'light'
+  });
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const params = new URLSearchParams();
+    params.set('from', fromInput.value);
+    params.set('to', toInput.value);
+    window.location.href = `${window.location.pathname}?${params.toString()}`;
+  });
+
+  resetBtn.addEventListener('click', () => {
+    const today = new Date();
+    const last7 = new Date(today);
+    last7.setDate(today.getDate() - 7);
+    const params = new URLSearchParams();
+    params.set('from', last7.toISOString().split('T')[0]);
+    params.set('to', today.toISOString().split('T')[0]);
+    window.location.href = `${window.location.pathname}?${params.toString()}`;
+  });
+</script>
