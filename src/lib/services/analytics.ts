@@ -5,117 +5,35 @@ export interface TrendsParams {
   to: string;
 }
 
-export interface SocTrendsResult {
-  dates: string[];
-  threats_all: number[];
-  threats_high_critical: number[];
-  traffic_tb: number[];
-  kpi: {
-    totalThreats: number;
-    highCriticalThreats: number;
-    highCriticalPercentage: number;
-    blockedThreatsCount: number;
-    blockedThreatsPercentage: number;
-    firewallTrafficTB: number;
-    firewallSessions: string;
-  };
-  status: 'live' | 'mock';
+export interface IspAvailability {
+  name: string;
+  sla: number;
+  /** Average availability in percent, or null when there is no data to average */
+  actual: number | null;
+  status: 'safe' | 'critical' | 'no-data';
+}
+
+export interface NocDeviceRow {
+  date: string;
+  sensor: string;
+  device: string;
+  /** Availability in percent, or null when the sensor reported zero up and down time */
+  availability: number | null;
+  traffic: number;
+  downtime: number;
 }
 
 export interface NocTrendsResult {
   dates: string[];
-  astinet: number[];
-  jlm: number[];
-  lintasarta: number[];
+  /** Daily availability per ISP in percent; null on days with no data for that ISP */
+  astinet: (number | null)[];
+  jlm: (number | null)[];
+  lintasarta: (number | null)[];
   traffic_mbps: number[];
   kpi: {
-    ispAvailability: Array<{
-      name: string;
-      sla: number;
-      actual: number;
-      status: 'safe' | 'critical';
-    }>;
+    ispAvailability: IspAvailability[];
   };
-  status: 'live' | 'mock';
-}
-
-export interface DashboardSummary {
-  soc: SocTrendsResult['kpi'];
-  noc: NocTrendsResult['kpi'];
-  lastUpdated: string;
-  status: 'live' | 'mock';
-}
-
-export async function getSocTrends(
-  supabase: SupabaseClient,
-  params: TrendsParams
-): Promise<SocTrendsResult> {
-  const { from, to } = params;
-
-  const { data, error } = await supabase
-    .from('soc_threats_daily')
-    .select('*')
-    .gte('date', from)
-    .lte('date', to)
-    .order('date', { ascending: true });
-
-  if (error || !data || data.length === 0) {
-    throw new Error(error?.message || 'No data found in Supabase');
-  }
-
-  const dates = data.map((d: any) => d.date);
-  const threats_all = data.map((d: any) => d.total_threats);
-  const threats_high_critical = data.map((d: any) => d.high_critical_threats);
-  const traffic_tb = data.map((d: any) => Number(d.firewall_traffic_tb));
-
-  const totalThreats = threats_all.reduce((a: number, b: number) => a + b, 0);
-  const highCriticalThreats = threats_high_critical.reduce((a: number, b: number) => a + b, 0);
-  const highCriticalPercentage = totalThreats > 0 
-    ? Number(((highCriticalThreats / totalThreats) * 100).toFixed(2)) 
-    : 0;
-  
-  const blockedThreatsCount = data.map((d: any) => d.blocked_threats).reduce((a: number, b: number) => a + b, 0);
-  const blockedThreatsPercentage = totalThreats > 0 
-    ? Number(((blockedThreatsCount / totalThreats) * 100).toFixed(2)) 
-    : 0;
-
-  const firewallTrafficTB = Number(traffic_tb.reduce((a: number, b: number) => a + b, 0).toFixed(1));
-  const firewallSessions = data[data.length - 1]?.firewall_sessions || '1.4M';
-
-  return {
-    dates,
-    threats_all,
-    threats_high_critical,
-    traffic_tb,
-    kpi: {
-      totalThreats,
-      highCriticalThreats,
-      highCriticalPercentage,
-      blockedThreatsCount,
-      blockedThreatsPercentage,
-      firewallTrafficTB,
-      firewallSessions
-    },
-    status: 'live'
-  };
-}
-
-export interface NocTrendsResult {
-  dates: string[];
-  astinet: number[];
-  jlm: number[];
-  lintasarta: number[];
-  traffic_mbps: number[];
-  kpi: {
-    ispAvailability: Array<{
-      name: string;
-      sla: number;
-      actual: number;
-      status: 'safe' | 'critical';
-    }>;
-  };
-  devices: any[]; // Added for table data
-  status: 'live' | 'mock';
+  devices: NocDeviceRow[];
 }
 
 function getIspFromSensor(name: string, device: string): string {
@@ -123,15 +41,35 @@ function getIspFromSensor(name: string, device: string): string {
   if (n.includes('astinet')) return 'Astinet';
   if (n.includes('jlm')) return 'JLM';
   if (n.includes('lintasarta')) return 'Lintasarta';
-  
-  // Fallback map
+
+  // Device-name lookup for sensors whose name does not contain the ISP
   const deviceMap: Record<string, string> = {
     'Benoa': 'Astinet',
-    // add more as needed
   };
   return deviceMap[device] || 'Unknown';
 }
 
+/** Availability in percent from up and down seconds. Null when there is no measured time. */
+function availabilityPercent(upSeconds: number, downSeconds: number): number | null {
+  const total = upSeconds + downSeconds;
+  if (!Number.isFinite(total) || total <= 0) return null;
+  return Number(((upSeconds / total) * 100).toFixed(2));
+}
+
+const mean = (values: (number | null)[]): number | null => {
+  const present = values.filter((v): v is number => v !== null);
+  if (present.length === 0) return null;
+  return Number((present.reduce((a, b) => a + b, 0) / present.length).toFixed(2));
+};
+
+const ispStatus = (actual: number | null, sla: number): IspAvailability['status'] => {
+  if (actual === null) return 'no-data';
+  return actual >= sla ? 'safe' : 'critical';
+};
+
+/**
+ * Throws only when the query itself fails. An empty date range returns empty series.
+ */
 export async function getNocTrends(
   supabase: SupabaseClient,
   params: TrendsParams
@@ -144,49 +82,50 @@ export async function getNocTrends(
     .gte('import_date', from)
     .lte('import_date', to);
 
-  if (error || !prtgData) {
-    throw new Error(error?.message || 'No PRTG data found in Supabase');
+  if (error) {
+    throw new Error(`NOC query failed: ${error.message}`);
   }
 
-  const dates = Array.from(new Set(prtgData.map((d: any) => d.import_date))).sort();
+  const rows = prtgData ?? [];
+  const dates = Array.from(new Set(rows.map((d: any) => d.import_date as string))).sort();
 
-  const astinet: number[] = [];
-  const jlm: number[] = [];
-  const lintasarta: number[] = [];
+  const astinet: (number | null)[] = [];
+  const jlm: (number | null)[] = [];
+  const lintasarta: (number | null)[] = [];
   const traffic_mbps: number[] = [];
 
   dates.forEach(date => {
-    const dayData = prtgData.filter((d: any) => d.import_date === date);
-    
-    const ispStats: Record<string, { totalUp: number, totalDown: number, traffic: number, count: number }> = {
-      'Astinet': { totalUp: 0, totalDown: 0, traffic: 0, count: 0 },
-      'JLM': { totalUp: 0, totalDown: 0, traffic: 0, count: 0 },
-      'Lintasarta': { totalUp: 0, totalDown: 0, traffic: 0, count: 0 }
+    const dayData = rows.filter((d: any) => d.import_date === date);
+
+    const ispStats: Record<string, { up: number, down: number, traffic: number, count: number }> = {
+      'Astinet': { up: 0, down: 0, traffic: 0, count: 0 },
+      'JLM': { up: 0, down: 0, traffic: 0, count: 0 },
+      'Lintasarta': { up: 0, down: 0, traffic: 0, count: 0 }
     };
 
     dayData.forEach((d: any) => {
       const isp = getIspFromSensor(d.sensor_name, d.device);
       if (ispStats[isp]) {
-        ispStats[isp].totalUp += Number(d.up_detik);
-        ispStats[isp].totalDown += Number(d.down_detik);
+        ispStats[isp].up += Number(d.up_detik);
+        ispStats[isp].down += Number(d.down_detik);
         ispStats[isp].traffic += Number(d.avg_total_mbit);
         ispStats[isp].count += 1;
       }
     });
 
-    const getAv = (i: string) => {
-      const s = ispStats[i];
-      const total = s.totalUp + s.totalDown;
-      return total === 0 ? 0 : (s.totalUp / total) * 100;
-    };
+    // Null when the ISP has no rows that day, so a gap is not plotted as 0%
+    const dayAvailability = (isp: string): number | null =>
+      ispStats[isp].count === 0 ? null : availabilityPercent(ispStats[isp].up, ispStats[isp].down);
 
-    astinet.push(Number(getAv('Astinet').toFixed(2)));
-    jlm.push(Number(getAv('JLM').toFixed(2)));
-    lintasarta.push(Number(getAv('Lintasarta').toFixed(2)));
+    astinet.push(dayAvailability('Astinet'));
+    jlm.push(dayAvailability('JLM'));
+    lintasarta.push(dayAvailability('Lintasarta'));
     traffic_mbps.push(Number((ispStats['Astinet'].traffic + ispStats['JLM'].traffic + ispStats['Lintasarta'].traffic).toFixed(2)));
   });
 
-  const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+  const astinetActual = mean(astinet);
+  const jlmActual = mean(jlm);
+  const lintasartaActual = mean(lintasarta);
 
   return {
     dates,
@@ -194,41 +133,20 @@ export async function getNocTrends(
     jlm,
     lintasarta,
     traffic_mbps,
-    devices: prtgData.map(d => ({
+    devices: rows.map((d: any) => ({
       date: d.import_date,
       sensor: d.sensor_name,
       device: d.device,
-      availability: ((Number(d.up_detik) / (Number(d.up_detik) + Number(d.down_detik))) * 100).toFixed(2),
-      traffic: d.avg_total_mbit
+      availability: availabilityPercent(Number(d.up_detik), Number(d.down_detik)),
+      traffic: Number(d.avg_total_mbit),
+      downtime: Number(d.down_detik)
     })),
     kpi: {
       ispAvailability: [
-        { name: 'Astinet', sla: 99.5, actual: Number(avg(astinet).toFixed(2)), status: avg(astinet) >= 99.5 ? 'safe' : 'critical' },
-        { name: 'JLM', sla: 99.0, actual: Number(avg(jlm).toFixed(2)), status: avg(jlm) >= 99.0 ? 'safe' : 'critical' },
-        { name: 'Lintasarta', sla: 99.5, actual: Number(avg(lintasarta).toFixed(2)), status: avg(lintasarta) >= 99.5 ? 'safe' : 'critical' }
+        { name: 'Astinet', sla: 99.5, actual: astinetActual, status: ispStatus(astinetActual, 99.5) },
+        { name: 'JLM', sla: 99.0, actual: jlmActual, status: ispStatus(jlmActual, 99.0) },
+        { name: 'Lintasarta', sla: 99.5, actual: lintasartaActual, status: ispStatus(lintasartaActual, 99.5) }
       ]
-    },
-    status: 'live'
+    }
   };
-}
-
-export async function getDashboardSummary(
-  supabase: SupabaseClient,
-  params: TrendsParams
-): Promise<DashboardSummary> {
-  try {
-    const [socData, nocData] = await Promise.all([
-      getSocTrends(supabase, params),
-      getNocTrends(supabase, params)
-    ]);
-
-    return {
-      soc: socData.kpi,
-      noc: nocData.kpi,
-      lastUpdated: new Date().toISOString(),
-      status: 'live'
-    };
-  } catch (error) {
-    throw error;
-  }
 }

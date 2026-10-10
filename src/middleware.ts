@@ -1,28 +1,30 @@
 import { defineMiddleware } from "astro:middleware";
 import { createSupabaseServerClient } from "./lib/supabase";
+import { jsonResponse } from "./lib/http";
 
 export const onRequest = defineMiddleware(async (context, next) => {
-  console.log('[MIDDLEWARE] Path:', context.url.pathname);
-
   const supabase = createSupabaseServerClient(context.cookies);
   const { data: { user } } = await supabase.auth.getUser();
 
-  console.log('[MIDDLEWARE] Session exists:', !!user);
-  console.log('[MIDDLEWARE] User:', user?.email);
-
+  // Only the login flow is open at the gate. The /api/soc, /api/noc and /api/tickets
+  // routes are listed here so the gate skips them, but each route checks the session itself.
+  const { pathname } = context.url;
   const isPublic =
-    context.url.pathname === "/login" ||
-    context.url.pathname.startsWith("/api/auth") ||
-    context.url.pathname.startsWith("/api/soc") ||
-    context.url.pathname.startsWith("/api/noc") ||
-    context.url.pathname.startsWith("/api/tickets") ||
-    context.url.pathname.startsWith("/api/cache");
+    pathname === "/login" ||
+    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/soc") ||
+    pathname.startsWith("/api/noc") ||
+    pathname.startsWith("/api/tickets");
 
   if (!isPublic && !user) {
-    console.log('[MIDDLEWARE] Redirecting to /login (no session)');
+    console.log(`[MIDDLEWARE] Denied ${context.request.method} ${pathname} (no session)`);
+
+    // API callers get a JSON 401 instead of an HTML redirect they cannot follow
+    if (pathname.startsWith("/api/")) {
+      return jsonResponse({ error: 'Unauthorized' }, 401);
+    }
     return context.redirect("/login");
   }
 
-  console.log('[MIDDLEWARE] Allowing request');
   return next();
 });

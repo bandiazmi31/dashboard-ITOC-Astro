@@ -4,171 +4,133 @@ import KPICardISP from '../components/KPICardISP.astro';
 import Chart from '../components/Chart.astro';
 import TopNTable from '../components/TopNTable.astro';
 import DateFilter from '../components/DateFilter.astro';
-
+import DataError from '../components/DataError.astro';
+import { jakartaDate, jakartaDaysAgo } from '../lib/dates';
 import { createSupabaseServerClient } from '../lib/supabase';
-import { getNocTrends } from '../lib/services/analytics';
+import { getNocTrends, type NocTrendsResult } from '../lib/services/analytics';
 
 // Get query params for date range, or default to last 7 days
 const url = new URL(Astro.request.url);
-const today = new Date();
-const sevenDaysAgo = new Date(today);
-sevenDaysAgo.setDate(today.getDate() - 7);
-
-const from = url.searchParams.get('from') || sevenDaysAgo.toISOString().split('T')[0];
-const to = url.searchParams.get('to') || today.toISOString().split('T')[0];
-
-// Initialize Supabase client
-const supabase = createSupabaseServerClient(Astro.cookies);
+const from = url.searchParams.get('from') || jakartaDaysAgo(7);
+const to = url.searchParams.get('to') || jakartaDate();
 
 // Verify authenticated user
+const supabase = createSupabaseServerClient(Astro.cookies);
 const { data: { user } } = await supabase.auth.getUser();
 
 if (!user) {
-  console.log('[NOC] User not authenticated, redirecting to /login');
-  Astro.redirect('/login');
+  return Astro.redirect('/login');
 }
 
-// Fetch live NOC trends data
-let nocData = {
-  dates: [],
-  astinet: [],
-  jlm: [],
-  lintasarta: [],
-  traffic_mbps: [],
-  kpi: {
-    ispAvailability: [
-            { name: 'Astinet', sla: 99.5, actual: 0, status: 'safe' },
-            { name: 'JLM', sla: 99.0, actual: 0, status: 'safe' },
-            { name: 'Lintasarta', sla: 99.5, actual: 0, status: 'safe' }
-    ]
-  },
-  status: 'mock'
-};
-
-let databaseError = false;
+let nocResult: NocTrendsResult | null = null;
+let loadError: string | null = null;
 
 try {
-  nocData = await getNocTrends(supabase, { from, to });
+  nocResult = await getNocTrends(supabase, { from, to });
 } catch (err) {
-  console.error('[NOC] Failed to fetch from Supabase:', err.message);
-  databaseError = true;
-  
-  // Fallback to mock data with same structure
-  const { nocSummary } = await import('../data/noc');
-  nocData = {
-    dates: nocSummary.trendDaily.map(d => d.date),
-    astinet: nocSummary.trendDaily.map(d => d.astinet),
-    jlm: nocSummary.trendDaily.map(d => d.jlm),
-    lintasarta: nocSummary.trendDaily.map(d => d.lintasarta),
-    traffic_mbps: nocSummary.trafficDaily.map(d => d.mbps),
-    kpi: {
-      ispAvailability: nocSummary.ispAvailability
-    },
-    status: 'mock'
-  };
+  console.error('[NOC] Failed to fetch from Supabase:', err instanceof Error ? err.message : err);
+  loadError = 'Gagal memuat data';
 }
+
+const noc = nocResult;
+
+// Top 20 sensors by downtime (seconds), taken from the live PRTG rows
+const topDowntime = noc
+  ? [...noc.devices].sort((a, b) => b.downtime - a.downtime).slice(0, 20)
+  : [];
 ---
 
 <Layout>
   <div class="space-y-6">
-    <DateFilter 
-      from={from} 
+    <DateFilter
+      from={from}
       to={to}
     />
 
-    {databaseError && (
-      <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
-        <p class="text-sm text-yellow-800">
-          <strong>⚠️ Peringatan:</strong> Koneksi database terputus. Menampilkan data fallback (offline).
-        </p>
-      </div>
+    {loadError && <DataError message={loadError} />}
+
+    {noc && (
+      <>
+        <!-- NOC KPI Cards - ISP Availability -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {noc.kpi.ispAvailability.map(isp => (
+            <KPICardISP
+              ispName={isp.name}
+              actual={isp.actual}
+              sla={isp.sla}
+              status={isp.status}
+            />
+          ))}
+        </div>
+
+        <!-- Trend Charts (2 columns) -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Chart
+            id="nocIspTrendChart"
+            type="line"
+            title="Ketersediaan ISP per Hari"
+            labels={noc.dates}
+            datasets={[
+              {
+                label: 'Astinet',
+                data: noc.astinet,
+                borderColor: '#3b82f6',
+                tension: 0.4,
+                fill: false
+              },
+              {
+                label: 'JLM',
+                data: noc.jlm,
+                borderColor: '#f59e0b',
+                tension: 0.4,
+                fill: false
+              },
+              {
+                label: 'Lintasarta',
+                data: noc.lintasarta,
+                borderColor: '#10b981',
+                tension: 0.4,
+                fill: false
+              }
+            ]}
+          />
+
+          <Chart
+            id="nocTrafficTrendChart"
+            type="line"
+            title="Trafik Rata-rata per Hari"
+            labels={noc.dates}
+            datasets={[
+              {
+                label: 'Trafik (Mbps)',
+                data: noc.traffic_mbps,
+                borderColor: '#8b5cf6',
+                tension: 0.4,
+                fill: false
+              }
+            ]}
+          />
+        </div>
+
+        <!-- Analytics Tables (Full-width Stacked) -->
+        <div class="space-y-6">
+          <TopNTable
+            title="Sensor dengan Downtime (20 Terbesar)"
+            columns={['Tanggal', 'Sensor', 'Lokasi', 'Downtime']}
+            data={topDowntime.map(d => ({ date: d.date, sensor: d.sensor, location: d.device, downtime: `${d.downtime}s` }))}
+            limit={20}
+          />
+
+          <div class="overflow-x-auto">
+            <TopNTable
+              title="Seluruh Sensor"
+              columns={['Tanggal', 'Sensor', 'Lokasi', 'Ketersediaan %', 'Trafik (Mbps)']}
+              data={noc.devices.map(d => ({ date: d.date, sensor: d.sensor, location: d.device, availability: d.availability === null ? 'N/A' : `${d.availability}%`, traffic: d.traffic }))}
+              limit={50}
+            />
+          </div>
+        </div>
+      </>
     )}
-
-    <!-- NOC KPI Cards - ISP Availability -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {nocData.kpi.ispAvailability.map(isp => (
-        <KPICardISP 
-          ispName={isp.name}
-          actual={isp.actual}
-          sla={isp.sla}
-          status={isp.status}
-        />
-      ))}
-    </div>
-
-    <!-- Data Status Indicator -->
-    <div class="text-xs text-gray-500 dark:text-gray-400">
-      {nocData.status === 'live' 
-        ? '📊 Data dari Supabase (Real-time)' 
-        : '⚠️ Data fallback (Database tidak tersedia)'}
-    </div>
-
-    <!-- Trend Charts (2 columns) -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <Chart 
-        id="nocIspTrendChart"
-        type="line"
-        title="Ketersediaan ISP per Hari"
-        labels={nocData.dates}
-        datasets={[
-          {
-            label: 'Astinet',
-            data: nocData.astinet,
-            borderColor: '#3b82f6',
-            tension: 0.4,
-            fill: false
-          },
-          {
-            label: 'JLM',
-            data: nocData.jlm,
-            borderColor: '#f59e0b',
-            tension: 0.4,
-            fill: false
-          },
-          {
-            label: 'Lintasarta',
-            data: nocData.lintasarta,
-            borderColor: '#10b981',
-            tension: 0.4,
-            fill: false
-          }
-        ]}
-      />
-      
-      <Chart 
-        id="nocTrafficTrendChart"
-        type="line"
-        title="Trafik Rata-rata per Hari"
-        labels={nocData.dates}
-        datasets={[
-          {
-            label: 'Trafik (Mbps)',
-            data: nocData.traffic_mbps,
-            borderColor: '#8b5cf6',
-            tension: 0.4,
-            fill: false
-          }
-        ]}
-      />
-    </div>
-
-    <!-- Analytics Tables (Full-width Stacked) -->
-    <div class="space-y-6">
-      <TopNTable 
-        title="Sensor dengan Downtime (20 Terbesar)"
-        columns={['Tanggal', 'Sensor', 'Lokasi', 'Downtime']}
-        data={nocData.devices.map((d: any) => ({ date: d.date, sensor: d.sensor, location: d.device, downtime: '0s' }))}
-        limit={20}
-      />
-      
-      <div class="overflow-x-auto">
-        <TopNTable 
-          title="Seluruh Sensor"
-          columns={['Tanggal', 'Sensor', 'Lokasi', 'Ketersediaan %', 'Trafik (Mbps)']}
-          data={nocData.devices.map((d: any) => ({ date: d.date, sensor: d.sensor, location: d.device, availability: `${d.availability}%`, traffic: d.traffic }))}
-          limit={50}
-        />
-      </div>
-    </div>
   </div>
 </Layout>

@@ -50,24 +50,22 @@ const { from, to } = Astro.props;
 
 <script>
   import flatpickr from 'flatpickr';
+  import { jakartaDate, jakartaDaysAgo } from '../lib/dates';
 
   const form = document.getElementById('dateFilterForm') as HTMLFormElement;
   const fromInput = document.getElementById('from') as HTMLInputElement;
   const toInput = document.getElementById('to') as HTMLInputElement;
   const resetBtn = document.getElementById('resetBtn') as HTMLButtonElement;
 
-  const isDark = document.documentElement.classList.contains('dark');
-
+  // Dark styling comes from the dark.css stylesheet above; flatpickr has no theme option
   flatpickr(fromInput, {
     dateFormat: 'Y-m-d',
-    defaultDate: fromInput.value,
-    theme: isDark ? 'dark' : 'light'
+    defaultDate: fromInput.value
   });
 
   flatpickr(toInput, {
     dateFormat: 'Y-m-d',
-    defaultDate: toInput.value,
-    theme: isDark ? 'dark' : 'light'
+    defaultDate: toInput.value
   });
 
   form.addEventListener('submit', (e) => {
@@ -79,12 +77,9 @@ const { from, to } = Astro.props;
   });
 
   resetBtn.addEventListener('click', () => {
-    const today = new Date();
-    const last7 = new Date(today);
-    last7.setDate(today.getDate() - 7);
     const params = new URLSearchParams();
-    params.set('from', last7.toISOString().split('T')[0]);
-    params.set('to', today.toISOString().split('T')[0]);
+    params.set('from', jakartaDaysAgo(7));
+    params.set('to', jakartaDate());
     window.location.href = `${window.location.pathname}?${params.toString()}`;
   });
 </script>

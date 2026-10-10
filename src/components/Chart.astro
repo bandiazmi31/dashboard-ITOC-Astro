@@ -6,19 +6,22 @@ interface Props {
   labels: string[];
   datasets: Array<{
     label: string;
-    data: number[];
+    data: (number | null)[];
     borderColor?: string;
     backgroundColor?: string;
     fill?: boolean;
+    tension?: number;
   }>;
+  /** 'bytes' shows axis ticks and tooltips as KB/MB/GB/TB */
+  valueFormat?: 'bytes';
 }
 
-const { id, type, title, labels, datasets } = Astro.props;
+const { id, type, title, labels, datasets, valueFormat } = Astro.props;
 ---
 
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900 p-4">
   <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">{title}</h3>
-  <canvas id={id} data-type={type} data-labels={JSON.stringify(labels)} data-datasets={JSON.stringify(datasets)}></canvas>
+  <canvas id={id} data-type={type} data-labels={JSON.stringify(labels)} data-datasets={JSON.stringify(datasets)} data-format={valueFormat ?? ''}></canvas>
   <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
     <a href="#" class="text-blue-600 dark:text-blue-400 hover:underline">Lihat sebagai tabel</a>
   </p>
@@ -26,6 +29,7 @@ const { id, type, title, labels, datasets } = Astro.props;
 
 <script>
   import Chart from 'chart.js/auto';
+  import { formatBytes } from '../lib/formatters';
 
   document.querySelectorAll('canvas[data-labels]').forEach((canvas) => {
     const ctx = (canvas as HTMLCanvasElement).getContext('2d');
@@ -34,6 +38,16 @@ const { id, type, title, labels, datasets } = Astro.props;
     const type = canvas.getAttribute('data-type') as 'line' | 'bar';
     const labels = JSON.parse(canvas.getAttribute('data-labels') || '[]');
     const datasets = JSON.parse(canvas.getAttribute('data-datasets') || '[]');
+    const valueFormat = canvas.getAttribute('data-format');
+
+    // Byte values are shown as KB/MB/GB/TB on the axis and in tooltips
+    const bytesAxis = valueFormat === 'bytes';
+    const yScale = bytesAxis
+      ? { beginAtZero: true, ticks: { callback: (value: string | number) => formatBytes(Number(value)) } }
+      : { beginAtZero: true };
+    const tooltip = bytesAxis
+      ? { callbacks: { label: (item: any) => `${item.dataset.label}: ${formatBytes(Number(item.parsed.y))}` } }
+      : {};
 
     new Chart(ctx, {
       type: type,
@@ -53,12 +67,11 @@ const { id, type, title, labels, datasets } = Astro.props;
           legend: {
             display: true,
             position: 'top'
-          }
+          },
+          tooltip
         },
         scales: {
-          y: {
-            beginAtZero: true
-          }
+          y: yScale
         }
       }
     });

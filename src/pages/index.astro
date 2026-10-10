@@ -5,255 +5,163 @@ import KPICardISP from '../components/KPICardISP.astro';
 import TicketsWidget from '../components/TicketsWidget.astro';
 import Chart from '../components/Chart.astro';
 import TopNTable from '../components/TopNTable.astro';
-import { nocSensorsDowntime, nocSensorsAll } from '../data/noc';
+import DataError from '../components/DataError.astro';
+import { jakartaDate, jakartaDaysAgo } from '../lib/dates';
 import { createSupabaseServerClient } from '../lib/supabase';
-import { getDashboardSummary } from '../lib/services/analytics';
+import { getNocTrends, type NocTrendsResult } from '../lib/services/analytics';
+import { getSocAggregates } from '../lib/services/soc-reports';
+import { buildSocDashboard, type SocDashboard } from '../lib/services/soc-kpis';
 
-// Calculate default date range (last 7 days)
-const today = new Date();
-const sevenDaysAgo = new Date(today);
-sevenDaysAgo.setDate(today.getDate() - 7);
-
-const from = sevenDaysAgo.toISOString().split('T')[0];
-const to = today.toISOString().split('T')[0];
-
-// Initialize Supabase client
-const supabase = createSupabaseServerClient(Astro.cookies);
+// Default date range: last 7 days, in WIB (Asia/Jakarta)
+const from = jakartaDaysAgo(7);
+const to = jakartaDate();
 
 // Verify authenticated user
+const supabase = createSupabaseServerClient(Astro.cookies);
 const { data: { user } } = await supabase.auth.getUser();
 
 if (!user) {
-  console.log('[INDEX] User not authenticated, redirecting to /login');
   return Astro.redirect('/login');
 }
 
-    // Fetch dashboard summary
-    let dashboardData = {
-      soc: {
-        totalThreats: 0,
-        highCriticalThreats: 0,
-        highCriticalPercentage: 0,
-        blockedThreatsCount: 0,
-        blockedThreatsPercentage: 0,
-        firewallTrafficTB: 0,
-        firewallSessions: '0'
-      },
-      noc: {
-        ispAvailability: [
-            { name: 'Astinet', sla: 99.5, actual: 0, status: 'safe' },
-            { name: 'JLM', sla: 99.0, actual: 0, status: 'safe' },
-            { name: 'Lintasarta', sla: 99.5, actual: 0, status: 'safe' }
-        ]
-      },
-      status: 'mock',
-      lastUpdated: ''
-    };
+let socResult: SocDashboard | null = null;
+let nocResult: NocTrendsResult | null = null;
+let loadError: string | null = null;
 
-    // Additional trend data for charts
-    let socTrends = {
-      dates: [],
-      threats_all: [],
-      threats_high_critical: [],
-      traffic_tb: [],
-      status: 'mock'
-    };
-    let nocTrends = {
-      dates: [],
-      astinet: [],
-      jlm: [],
-      lintasarta: [],
-      traffic_mbps: [],
-      status: 'mock'
-    };
+try {
+  const [aggregates, noc] = await Promise.all([
+    getSocAggregates(supabase, { from, to }),
+    getNocTrends(supabase, { from, to })
+  ]);
+  socResult = buildSocDashboard(aggregates, from, to);
+  nocResult = noc;
+} catch (err) {
+  console.error('[INDEX] Failed to fetch dashboard data:', err instanceof Error ? err.message : err);
+  loadError = 'Gagal memuat data';
+}
 
-    let databaseError = false;
-
-    try {
-      dashboardData = await getDashboardSummary(supabase, { from, to });
-      // Also fetch detailed trends for charts
-      const { getSocTrends, getNocTrends } = await import('../lib/services/analytics');
-      socTrends = await getSocTrends(supabase, { from, to });
-      nocTrends = await getNocTrends(supabase, { from, to });
-    } catch (err) {
-      console.error('[INDEX] Failed to fetch dashboard summary:', err.message);
-      databaseError = true;
-      
-      // Fallback to mock data
-      const { socSummary } = await import('../data/soc');
-      const { nocSummary } = await import('../data/noc');
-      
-      dashboardData = {
-        soc: {
-          totalThreats: socSummary.totalThreats,
-          highCriticalThreats: socSummary.highCriticalThreats,
-          highCriticalPercentage: socSummary.highCriticalPercentage,
-          blockedThreatsCount: socSummary.blockedThreatsCount,
-          blockedThreatsPercentage: socSummary.blockedThreatsPercentage,
-          firewallTrafficTB: socSummary.firewallTrafficTB,
-          firewallSessions: socSummary.firewallSessions
-        },
-        noc: {
-          ispAvailability: nocSummary.ispAvailability
-        },
-        status: 'mock',
-        lastUpdated: new Date().toISOString()
-      };
-      // Mock trends using the mock data structures
-      socTrends = {
-        dates: socSummary.trendDaily.map(d => d.date),
-        threats_all: socSummary.trendDaily.map(d => d.all),
-        threats_high_critical: socSummary.trendDaily.map(d => d.high),
-        traffic_tb: socSummary.trafficDaily.map(d => d.tb),
-        status: 'mock'
-      };
-      nocTrends = {
-        dates: nocSummary.trendDaily.map(d => d.date),
-        astinet: nocSummary.trendDaily.map(d => d.astinet),
-        jlm: nocSummary.trendDaily.map(d => d.jlm),
-        lintasarta: nocSummary.trendDaily.map(d => d.lintasarta),
-        traffic_mbps: nocSummary.trafficDaily.map(d => d.mbps),
-        status: 'mock'
-      };
-    }
+const soc = socResult;
+const noc = nocResult;
 ---
 
 <Layout>
   <div class="space-y-6">
-    {databaseError && (
-      <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
-        <p class="text-sm text-yellow-800">
-          <strong>⚠️ Peringatan:</strong> Koneksi database terputus. Menampilkan data fallback (offline).
-        </p>
-      </div>
-    )}
-
     <!-- Tickets Widget (Real-time from ManageEngine) -->
     <TicketsWidget />
 
-    <!-- Data Status Indicator -->
-    <div class="text-xs text-gray-500 dark:text-gray-400">
-      {dashboardData.status === 'live' 
-        ? '📊 Data ringkasan dari Supabase (Real-time)' 
-        : '⚠️ Data fallback (Database tidak tersedia)'}
-    </div>
+    {loadError && <DataError message={loadError} />}
 
-    <!-- SOC KPI Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <KPICard 
-        label="Total Kejadian Ancaman" 
-        value={dashboardData.soc.totalThreats}
-        status="info"
-      />
-      <KPICard 
-        label="High/Critical Threats" 
-        value={dashboardData.soc.highCriticalThreats}
-        unit={`(${dashboardData.soc.highCriticalPercentage}%)`}
-        status={dashboardData.soc.highCriticalPercentage > 5 ? 'warning' : 'safe'}
-      />
-      <KPICard 
-        label="Ancaman Diblokir" 
-        value={`${dashboardData.soc.blockedThreatsPercentage}%`}
-        unit={`(${dashboardData.soc.blockedThreatsCount} kejadian)`}
-        status="safe"
-      />
-      <KPICard 
-        label="Volume Trafik Firewall" 
-        value={dashboardData.soc.firewallTrafficTB}
-        unit={`TB / ${dashboardData.soc.firewallSessions} sesi`}
-        status="info"
-      />
-    </div>
-    
-    <!-- NOC KPI Cards - ISP Availability -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {dashboardData.noc.ispAvailability.map(isp => (
-        <KPICardISP 
-          ispName={isp.name}
-          actual={isp.actual}
-          sla={isp.sla}
-          status={isp.status}
-        />
-      ))}
-    </div>
-    
-    <!-- Trend Charts (SOC & NOC) -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-      <!-- SOC Trend Chart -->
-      <Chart 
-        id="socTrendChart"
-        type="line"
-        title="Kejadian Ancaman per Hari"
-        labels={socTrends.dates}
-        datasets={[
-          {
-            label: 'Semua Ancaman',
-            data: socTrends.threats_all,
-            borderColor: '#6366f1',
-            tension: 0.4,
-            fill: false
-          },
-          {
-            label: 'High/Critical',
-            data: socTrends.threats_high_critical,
-            borderColor: '#ef4444',
-            tension: 0.4,
-            fill: false
-          }
-        ]}
-      />
-      <!-- NOC Trend Chart -->
-      <Chart 
-        id="nocTrendChart"
-        type="line"
-        title="Ketersediaan ISP per Hari"
-        labels={nocTrends.dates}
-        datasets={[
-          {
-            label: 'Astinet',
-            data: nocTrends.astinet,
-            borderColor: '#3b82f6',
-            tension: 0.4,
-            fill: false
-          },
-          {
-            label: 'JLM',
-            data: nocTrends.jlm,
-            borderColor: '#f59e0b',
-            tension: 0.4,
-            fill: false
-          },
-          {
-            label: 'Lintasarta',
-            data: nocTrends.lintasarta,
-            borderColor: '#10b981',
-            tension: 0.4,
-            fill: false
-          }
-        ]}
-      />
-    </div>
+    {soc && noc && (
+      <>
+        <!-- SOC KPI Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <KPICard
+            label="Total Kejadian Ancaman"
+            value={soc.kpi.totalThreats}
+            status="info"
+          />
+          <KPICard
+            label="High/Critical Threats"
+            value={soc.kpi.highCriticalThreats}
+            unit={`(${soc.kpi.highCriticalPercentage}%)`}
+            status={soc.kpi.highCriticalPercentage > 5 ? 'warning' : 'safe'}
+          />
+          <KPICard
+            label="Ancaman Diblokir"
+            value={`${soc.kpi.blockedPercentage}%`}
+            unit={`(${soc.kpi.blockedThreats} kejadian)`}
+            status="safe"
+          />
+          <KPICard
+            label="Host Internal Terimbas"
+            value={soc.kpi.internalHostCount}
+            unit="host"
+            status="info"
+          />
+          <KPICard
+            label="Trafik Aplikasi"
+            value={soc.kpi.applicationVolume}
+            status="info"
+          />
+        </div>
 
-    <!-- Sensor Downtime Table (Top 20) -->
-    <div class="overflow-x-auto mt-4">
-      <TopNTable 
-        title="Seluruh Sensor"
-        columns={['ID', 'Sensor', 'Lokasi', 'ISP', 'Ketersediaan %', 'Trafik (Mbps)', 'Puncak (Mbps)', 'Kapasitas (Mbps)', 'Utilisasi Puncak']}
-        data={nocSensorsAll}
-        statusColumn="utilization_peak"
-        limit={50}
-      />
-    </div>
+        <!-- NOC KPI Cards - ISP Availability -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {noc.kpi.ispAvailability.map(isp => (
+            <KPICardISP
+              ispName={isp.name}
+              actual={isp.actual}
+              sla={isp.sla}
+              status={isp.status}
+            />
+          ))}
+        </div>
 
-    <!-- All Sensors Table -->
-    <div class="overflow-x-auto mt-4">
-      <TopNTable 
-        title="Seluruh Sensor"
-        columns={['ID', 'Sensor', 'Lokasi', 'ISP', 'Ketersediaan %', 'Trafik (Mbps)', 'Puncak (Mbps)', 'Kapasitas (Mbps)', 'Utilisasi Puncak']}
-        data={nocSensorsAll}
-        statusColumn="utilization_peak"
-        limit={50}
-      />
-    </div>
-  </div> <!-- Tambahkan penutup untuk <div class="space-y-6"> -->
-</Layout> <!-- Tambahkan penutup untuk <Layout> -->
+        <!-- Trend Charts (SOC & NOC) -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+          <Chart
+            id="socTrendChart"
+            type="line"
+            title="Kejadian Ancaman per Hari"
+            labels={soc.dates}
+            datasets={[
+              {
+                label: 'Semua Ancaman',
+                data: soc.threats_all,
+                borderColor: '#6366f1',
+                tension: 0.4,
+                fill: false
+              },
+              {
+                label: 'High/Critical',
+                data: soc.threats_high_critical,
+                borderColor: '#ef4444',
+                tension: 0.4,
+                fill: false
+              }
+            ]}
+          />
+          <Chart
+            id="nocTrendChart"
+            type="line"
+            title="Ketersediaan ISP per Hari"
+            labels={noc.dates}
+            datasets={[
+              {
+                label: 'Astinet',
+                data: noc.astinet,
+                borderColor: '#3b82f6',
+                tension: 0.4,
+                fill: false
+              },
+              {
+                label: 'JLM',
+                data: noc.jlm,
+                borderColor: '#f59e0b',
+                tension: 0.4,
+                fill: false
+              },
+              {
+                label: 'Lintasarta',
+                data: noc.lintasarta,
+                borderColor: '#10b981',
+                tension: 0.4,
+                fill: false
+              }
+            ]}
+          />
+        </div>
+
+        <!-- Live sensor table (same source as the NOC page) -->
+        <div class="overflow-x-auto mt-4">
+          <TopNTable
+            title="Seluruh Sensor"
+            columns={['Tanggal', 'Sensor', 'Lokasi', 'Ketersediaan %', 'Trafik (Mbps)']}
+            data={noc.devices.map(d => ({ date: d.date, sensor: d.sensor, location: d.device, availability: d.availability === null ? 'N/A' : `${d.availability}%`, traffic: d.traffic }))}
+            limit={50}
+          />
+        </div>
+      </>
+    )}
+  </div>
+</Layout>
