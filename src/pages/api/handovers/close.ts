@@ -1,22 +1,26 @@
 import type { APIRoute } from 'astro';
 import { createSupabaseServerClient } from '../../../lib/supabase';
+import { jsonResponse, serverError } from '../../../lib/http';
 
 export const POST: APIRoute = async ({ request, cookies }) => {
-  const body = await request.json();
+  let body: any;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ error: 'Invalid JSON body' }, 400);
+  }
+
   const { id } = body;
 
   if (!id) {
-    return new Response(JSON.stringify({ error: 'Handover ID is required' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return jsonResponse({ error: 'Handover ID is required' }, 400);
   }
 
   const supabase = createSupabaseServerClient(cookies);
 
   const { data, error } = await supabase
     .from('handovers')
-    .update({ 
+    .update({
       status: 'closed',
       closed_at: new Date().toISOString()
     })
@@ -24,15 +28,13 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     .select();
 
   if (error) {
-    // Fallback success response
-    return new Response(JSON.stringify({ success: true, id, status: 'closed' }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return serverError('HANDOVERS CLOSE', error);
   }
 
-  return new Response(JSON.stringify(data[0]), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' }
-  });
+  // No row updated: the id does not exist, or RLS hid the row from this user
+  if (!data || data.length === 0) {
+    return jsonResponse({ error: 'Handover not found' }, 404);
+  }
+
+  return jsonResponse(data[0]);
 };

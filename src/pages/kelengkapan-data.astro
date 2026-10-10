@@ -1,134 +1,32 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import StatusCell from '../components/StatusCell.astro';
 import PRTGUploadWidget from '../components/PRTGUploadWidget.astro';
-import { auditSocReports, auditNocPdfStats, auditNocCoverage } from '../data/audit';
+import SOCUploadWidget from '../components/SOCUploadWidget.astro';
+import { jakartaDate } from '../lib/dates';
 ---
 
 <Layout>
   <div class="space-y-6">
     <!-- Page Title & Description -->
     <div>
-      <h2 class="text-2xl font-bold text-gray-900">Kelengkapan Data</h2>
-      <p class="text-sm text-gray-600 mt-1">
-        Halaman ini menampilkan status kelengkapan data harian dari sistem monitoring (Palo Alto, PRTG). 
+      <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Kelengkapan Data</h2>
+      <p class="text-sm text-gray-600 dark:text-gray-300 mt-1">
+        Halaman ini menampilkan status kelengkapan data harian dari sistem monitoring (Palo Alto, PRTG).
         Data ini menentukan akurasi dashboard.
       </p>
     </div>
 
-    <PRTGUploadWidget />
-
-    <!-- SOC Report Matrix Section -->
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900 p-4">
-      <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-3">SOC — Jenis Report per Hari</h3>
-      
-      <!-- SOC Warning Banner -->
-      {auditSocReports.truncatedFiles.length > 0 && (
-        <div class="bg-yellow-50 dark:bg-yellow-900/30 border-l-4 border-yellow-400 p-3 rounded mb-4">
-          <p class="text-sm text-yellow-800 dark:text-yellow-200">
-            <strong>Peringatan:</strong> 
-            {auditSocReports.truncatedFiles.map(item => (
-              <span class="block">File terpotong (mencapai 10.000 baris): {item.date} {item.file}</span>
-            ))}
-          </p>
-        </div>
-      )}
-
-      <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse border border-gray-300 dark:border-gray-700">
-          <thead>
-            <tr class="bg-gray-100 dark:bg-gray-900 border-b border-gray-300 dark:border-gray-700">
-              <th class="px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 border-r border-gray-300 dark:border-gray-700">Tanggal</th>
-              {auditSocReports.files.map(file => (
-                <th class="px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 border-r border-gray-300 dark:border-gray-700 text-center">{file}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {auditSocReports.daily.map((row, index) => (
-              <tr class={index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50/50 dark:bg-gray-900/50'}>
-                <td class="px-3 py-2 text-xs font-medium text-gray-900 dark:text-gray-100 border-r border-gray-300 dark:border-gray-700">{row.date}</td>
-                {auditSocReports.files.map(file => (
-                  <StatusCell value={row[file]} />
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+      <PRTGUploadWidget />
+      <SOCUploadWidget defaultDate={jakartaDate()} />
     </div>
 
-    <!-- NOC PDF PRTG Statistics Section -->
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900 p-4">
-      <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-3">NOC — PDF PRTG per Hari</h3>
-      
-      <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse">
-          <thead>
-            <tr class="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-              <th class="px-3 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Tanggal</th>
-              <th class="px-3 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">File</th>
-              <th class="px-3 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Halaman Sensor</th>
-              <th class="px-3 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Sensor Unik</th>
-              <th class="px-3 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Dobel Dibuang</th>
-              <th class="px-3 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Gagal Baca</th>
-              <th class="px-3 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Tanggal Tidak Cocok</th>
-              <th class="px-3 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Catatan</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
-            {auditNocPdfStats.map((row, index) => (
-              <tr class={index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50/50 dark:bg-gray-900/50'}>
-                <td class="px-3 py-2 text-xs text-gray-800 dark:text-gray-300">{row.date}</td>
-                <td class="px-3 py-2 text-xs text-gray-800 dark:text-gray-300">{row.files}</td>
-                <td class="px-3 py-2 text-xs text-gray-800 dark:text-gray-300">{row.pages}</td>
-                <td class="px-3 py-2 text-xs text-gray-800 dark:text-gray-300">{row.unique_sensors}</td>
-                <td class="px-3 py-2 text-xs text-gray-800 dark:text-gray-300">{row.duplicates_removed}</td>
-                <td class={`px-3 py-2 text-xs font-medium ${row.failed_reads > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-800 dark:text-gray-300'}`}>
-                  {row.failed_reads}
-                </td>
-                <td class={`px-3 py-2 text-xs font-medium ${row.date_mismatch > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-gray-800 dark:text-gray-300'}`}>
-                  {row.date_mismatch}
-                </td>
-                <td class="px-3 py-2 text-xs text-gray-600 dark:text-gray-400 max-w-xs truncate">{row.notes}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- NOC Sensor Coverage Section -->
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900 p-4">
-      <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-3">NOC — Cakupan Sensor per Hari</h3>
-      <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
-        Batas cakupan lengkap dapat diubah di <a href="/admin" class="text-blue-600 dark:text-blue-400 hover:underline">Admin</a>.
+    <!-- Completeness status: no live source exists yet -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900 p-10 flex flex-col items-center justify-center text-center">
+      <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Data belum tersedia</h3>
+      <p class="mt-2 max-w-md text-sm text-gray-500 dark:text-gray-400">
+        Status kelengkapan harian laporan SOC, PDF PRTG, dan cakupan sensor akan ditampilkan setelah sumber datanya tersedia.
       </p>
-      
-      <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse">
-          <thead>
-            <tr class="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-              <th class="px-3 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Tanggal</th>
-              <th class="px-3 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Sensor Terbaca</th>
-              <th class="px-3 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Sensor Diharapkan</th>
-              <th class="px-3 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Cakupan</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
-            {auditNocCoverage.map((row, index) => (
-              <tr class={index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50/50 dark:bg-gray-900/50'}>
-                <td class="px-3 py-2 text-xs text-gray-800 dark:text-gray-300">{row.date}</td>
-                <td class="px-3 py-2 text-xs text-gray-800 dark:text-gray-300">{row.sensors_read}</td>
-                <td class="px-3 py-2 text-xs text-gray-800 dark:text-gray-300">{row.sensors_expected}</td>
-                <td class={`px-3 py-2 text-xs font-medium ${row.coverage < 95 ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-400'}`}>
-                  {row.coverage.toFixed(2)}%
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
   </div>
 </Layout>

@@ -4,7 +4,7 @@ interface Props {}
 
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900 p-4">
   <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-3">Serah Terima (Handovers)</h3>
-  
+
   <!-- Filter Status -->
   <div class="flex items-center space-x-2 mb-4">
     <label class="text-sm text-gray-600 dark:text-gray-300" for="status-filter">Status:</label>
@@ -24,22 +24,22 @@ interface Props {}
   <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
     <h4 class="font-medium text-gray-900 dark:text-white mb-2">Tambah Serah Terima Baru</h4>
     <div class="space-y-2">
-      <input 
-        type="text" 
-        id="new-title" 
-        placeholder="Judul" 
+      <input
+        type="text"
+        id="new-title"
+        placeholder="Judul"
         class="w-full border dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 dark:text-white"
       />
-      <textarea 
-        id="new-desc" 
-        placeholder="Deskripsi (opsional)" 
-        class="w-full border dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 dark:text-white" 
+      <textarea
+        id="new-desc"
+        placeholder="Deskripsi (opsional)"
+        class="w-full border dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 dark:text-white"
         rows="2"
       />
-      <input 
-        type="text" 
-        id="new-shift" 
-        placeholder="Info Shift" 
+      <input
+        type="text"
+        id="new-shift"
+        placeholder="Info Shift"
         class="w-full border dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 dark:text-white"
       />
       <button id="create-btn" class="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700">Buat</button>
@@ -48,6 +48,15 @@ interface Props {}
 </div>
 
 <script>
+  interface Handover {
+    id: string | number;
+    title: string;
+    description?: string | null;
+    shift_info?: string | null;
+    status: 'open' | 'closed';
+    created_at: string;
+  }
+
   const statusFilter = document.getElementById('status-filter') as HTMLSelectElement;
   const refreshBtn = document.getElementById('refresh-btn') as HTMLButtonElement;
   const handoversList = document.getElementById('handovers-list') as HTMLDivElement;
@@ -56,44 +65,96 @@ interface Props {}
   const newShiftInput = document.getElementById('new-shift') as HTMLInputElement;
   const createBtn = document.getElementById('create-btn') as HTMLButtonElement;
 
+  // All user-supplied values are written with textContent / dataset, never parsed as HTML.
+  function renderMessage(text: string, colorClass: string): HTMLElement {
+    const el = document.createElement('div');
+    el.className = `text-center py-4 ${colorClass}`;
+    el.textContent = text;
+    return el;
+  }
+
+  function renderHandover(item: Handover): HTMLElement {
+    const row = document.createElement('div');
+    row.className = 'py-3 flex items-start justify-between';
+
+    const body = document.createElement('div');
+    body.className = 'flex-1';
+
+    const title = document.createElement('h4');
+    title.className = 'font-medium text-gray-900 dark:text-white';
+    title.textContent = item.title;
+    body.appendChild(title);
+
+    if (item.description) {
+      const desc = document.createElement('p');
+      desc.className = 'text-xs text-gray-600 dark:text-gray-300';
+      desc.textContent = item.description;
+      body.appendChild(desc);
+    }
+
+    const meta = document.createElement('p');
+    meta.className = 'text-xs text-gray-500 dark:text-gray-400';
+    meta.textContent = `Shift: ${item.shift_info ?? ''} | Created: ${new Date(item.created_at).toLocaleDateString('id-ID')}`;
+    body.appendChild(meta);
+
+    row.appendChild(body);
+
+    if (item.status === 'open') {
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.className = 'close-handover-btn bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700 ml-2 whitespace-nowrap';
+      closeBtn.dataset.id = String(item.id);
+      closeBtn.textContent = 'Close';
+      row.appendChild(closeBtn);
+    }
+
+    return row;
+  }
+
   async function fetchHandovers() {
     try {
-      const res = await fetch(`/api/handovers?status=${statusFilter.value}`);
-      const data = await res.json();
+      const res = await fetch(`/api/handovers?status=${encodeURIComponent(statusFilter.value)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      if (!data || data.length === 0) {
-        handoversList.innerHTML = '<div class="text-center py-4 text-gray-500 dark:text-gray-400">Tidak ada serah terima</div>';
+      const data: Handover[] = await res.json();
+
+      if (!Array.isArray(data) || data.length === 0) {
+        handoversList.replaceChildren(renderMessage('Tidak ada serah terima', 'text-gray-500 dark:text-gray-400'));
         return;
       }
 
-      handoversList.innerHTML = data.map((item: any) => `
-        <div class="py-3 flex items-start justify-between">
-          <div class="flex-1">
-            <h4 class="font-medium text-gray-900 dark:text-white">${item.title}</h4>
-            ${item.description ? `<p class="text-xs text-gray-600 dark:text-gray-300">${item.description}</p>` : ''}
-            <p class="text-xs text-gray-500 dark:text-gray-400">
-              Shift: ${item.shift_info} | Created: ${new Date(item.created_at).toLocaleDateString('id-ID')}
-            </p>
-          </div>
-          ${item.status === 'open' ? `<button class="close-handover-btn bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700 ml-2 whitespace-nowrap" data-id="${item.id}">Close</button>` : ''}
-        </div>
-      `).join('');
-
-      // Attach close button listeners
-      document.querySelectorAll('.close-handover-btn').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-          const id = (e.target as HTMLButtonElement).getAttribute('data-id');
-          await fetch('/api/handovers/close', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id })
-          });
-          fetchHandovers();
-        });
-      });
+      handoversList.replaceChildren(...data.map(renderHandover));
     } catch (err) {
-      handoversList.innerHTML = '<div class="text-center py-4 text-red-600">Gagal memuat handovers</div>';
+      handoversList.replaceChildren(renderMessage('Gagal memuat handovers', 'text-red-600'));
     }
+  }
+
+  // One delegated listener instead of re-binding after every render
+  handoversList.addEventListener('click', async (e) => {
+    const closeBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('.close-handover-btn');
+    if (!closeBtn) return;
+
+    try {
+      const res = await fetch('/api/handovers/close', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: closeBtn.dataset.id })
+      });
+
+      if (!res.ok) {
+        alert(`Gagal menutup handover: ${await errorMessageFrom(res)}`);
+        return;
+      }
+      fetchHandovers();
+    } catch (err) {
+      alert('Gagal menutup handover: tidak dapat terhubung ke server');
+    }
+  });
+
+  // Pull the server's { error } message out of a failed response, falling back to the status code
+  async function errorMessageFrom(res: Response): Promise<string> {
+    const body = await res.json().catch(() => null);
+    return body?.error ?? `HTTP ${res.status}`;
   }
 
   async function createHandover() {
@@ -103,7 +164,7 @@ interface Props {}
     }
 
     try {
-      await fetch('/api/handovers/create', {
+      const res = await fetch('/api/handovers/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -113,13 +174,18 @@ interface Props {}
         })
       });
 
+      if (!res.ok) {
+        alert(`Gagal membuat handover: ${await errorMessageFrom(res)}`);
+        return;
+      }
+
       newTitleInput.value = '';
       newDescInput.value = '';
       newShiftInput.value = '';
       statusFilter.value = 'open';
       fetchHandovers();
     } catch (err) {
-      alert('Gagal membuat handover');
+      alert('Gagal membuat handover: tidak dapat terhubung ke server');
     }
   }
 
