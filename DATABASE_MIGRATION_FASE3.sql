@@ -1,7 +1,8 @@
 -- ============================================
 -- Fase 3: Historical Data Tables for SOC & NOC Charts
 -- Supabase Migration Script
--- Last updated: 2026-10-08
+-- Last updated: 2026-10-10
+-- Schema and RLS only. No seed data: rows must come from the real SOC/NOC sources.
 -- ============================================
 
 -- ============================================
@@ -45,64 +46,36 @@ CREATE INDEX IF NOT EXISTS idx_noc_availability_date ON public.noc_availability_
 ALTER TABLE public.soc_threats_daily ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.noc_availability_daily ENABLE ROW LEVEL SECURITY;
 
--- Allow authenticated users to read data (security fix)
-CREATE POLICY IF NOT EXISTS "Allow authenticated read soc_threats" ON public.soc_threats_daily
-  FOR SELECT TO authenticated USING (true);
+-- Allow authenticated users to read data (security fix).
+-- Postgres has no CREATE POLICY IF NOT EXISTS, so check pg_policies first.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'soc_threats_daily'
+      AND policyname = 'Allow authenticated read soc_threats'
+  ) THEN
+    CREATE POLICY "Allow authenticated read soc_threats" ON public.soc_threats_daily
+      FOR SELECT TO authenticated USING (true);
+  END IF;
 
-CREATE POLICY IF NOT EXISTS "Allow authenticated read noc_availability" ON public.noc_availability_daily
-  FOR SELECT TO authenticated USING (true);
-
--- ============================================
--- Seed Data: SOC Threats (Last 8 Days: 2026-10-01 to 2026-10-08)
--- Generated from src/data/soc.ts mock data
--- ============================================
-INSERT INTO public.soc_threats_daily (date, total_threats, high_critical_threats, blocked_threats, firewall_traffic_tb, firewall_sessions)
-VALUES
-  ('2026-10-01', 150, 10, 147, 6.2, '200K'),
-  ('2026-10-02', 180, 12, 176, 5.8, '195K'),
-  ('2026-10-03', 130, 5, 127, 6.5, '210K'),
-  ('2026-10-04', 210, 18, 205, 7.1, '220K'),
-  ('2026-10-05', 195, 14, 191, 6.9, '205K'),
-  ('2026-10-06', 260, 16, 254, 6.4, '198K'),
-  ('2026-10-07', 295, 10, 290, 6.3, '190K'),
-  ('2026-10-08', 220, 15, 215, 6.8, '210K')
-ON CONFLICT (date) DO NOTHING;
-
--- ============================================
--- Seed Data: NOC ISP Availability (Last 8 Days: 2026-10-01 to 2026-10-08)
--- Generated from src/data/noc.ts mock data
--- Traffic split: Astinet ~60%, Lintasarta ~25%, JLM ~15%
--- ============================================
-INSERT INTO public.noc_availability_daily (date, isp_name, availability_percent, traffic_mbps)
-VALUES
-  ('2026-10-01', 'Astinet', 99.9, 450),
-  ('2026-10-01', 'JLM', 99.1, 150),
-  ('2026-10-01', 'Lintasarta', 99.7, 200),
-  ('2026-10-02', 'Astinet', 100.0, 480),
-  ('2026-10-02', 'JLM', 98.2, 155),
-  ('2026-10-02', 'Lintasarta', 99.5, 210),
-  ('2026-10-03', 'Astinet', 99.8, 420),
-  ('2026-10-03', 'JLM', 97.9, 145),
-  ('2026-10-03', 'Lintasarta', 99.6, 195),
-  ('2026-10-04', 'Astinet', 100.0, 510),
-  ('2026-10-04', 'JLM', 98.5, 160),
-  ('2026-10-04', 'Lintasarta', 99.8, 220),
-  ('2026-10-05', 'Astinet', 99.7, 495),
-  ('2026-10-05', 'JLM', 98.9, 158),
-  ('2026-10-05', 'Lintasarta', 99.2, 205),
-  ('2026-10-06', 'Astinet', 99.8, 530),
-  ('2026-10-06', 'JLM', 98.0, 152),
-  ('2026-10-06', 'Lintasarta', 99.3, 215),
-  ('2026-10-07', 'Astinet', 100.0, 485),
-  ('2026-10-07', 'JLM', 98.4, 156),
-  ('2026-10-07', 'Lintasarta', 99.5, 208),
-  ('2026-10-08', 'Astinet', 99.85, 465),
-  ('2026-10-08', 'JLM', 98.3, 154),
-  ('2026-10-08', 'Lintasarta', 99.6, 210)
-ON CONFLICT (date, isp_name) DO NOTHING;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'noc_availability_daily'
+      AND policyname = 'Allow authenticated read noc_availability'
+  ) THEN
+    CREATE POLICY "Allow authenticated read noc_availability" ON public.noc_availability_daily
+      FOR SELECT TO authenticated USING (true);
+  END IF;
+END $$;
 
 -- ============================================
--- Verification Queries (Uncomment to check)
+-- Cleanup for databases where the old seed data was already applied.
+-- Review first, then run manually. Only deletes the rows the old seed inserted.
 -- ============================================
--- SELECT * FROM public.soc_threats_daily ORDER BY date DESC LIMIT 8;
--- SELECT * FROM public.noc_availability_daily ORDER BY date DESC, isp_name LIMIT 24;
+-- DELETE FROM public.soc_threats_daily
+--   WHERE date BETWEEN '2026-10-01' AND '2026-10-08'
+--     AND firewall_sessions IN ('200K','195K','210K','220K','205K','198K','190K');
+-- DELETE FROM public.noc_availability_daily
+--   WHERE date BETWEEN '2026-10-01' AND '2026-10-08'
+--     AND isp_name IN ('Astinet', 'JLM', 'Lintasarta');

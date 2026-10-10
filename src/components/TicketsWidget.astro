@@ -38,17 +38,18 @@ const { dateFrom, dateTo } = Astro.props;
       if (dateTo) params.append('to', dateTo);
 
       const res = await fetch(`/api/tickets/summary?${params.toString()}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
 
-      document.getElementById('incoming-count').textContent = data.incoming || 0;
-      document.getElementById('resolved-count').textContent = data.resolved || 0;
-      document.getElementById('sla-percentage').textContent = `${data.slaMetPercentage || 0}%`;
-      document.getElementById('data-status').textContent = 
-        data.status === 'live' 
-          ? 'Data dari ManageEngine API (Real-time)' 
-          : 'Data fallback (API tidak tersedia)';
+      document.getElementById('incoming-count').textContent = String(data.incoming ?? 0);
+      document.getElementById('resolved-count').textContent = String(data.resolved ?? 0);
+      document.getElementById('sla-percentage').textContent = `${data.slaMetPercentage ?? 0}%`;
+      document.getElementById('data-status').textContent = 'Data dari ManageEngine API (Real-time)';
     } catch (err) {
       console.error('Failed to load tickets:', err);
+      document.getElementById('incoming-count').textContent = '--';
+      document.getElementById('resolved-count').textContent = '--';
+      document.getElementById('sla-percentage').textContent = '--';
       document.getElementById('data-status').textContent = 'Gagal memuat data';
     }
   }

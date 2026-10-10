@@ -12,7 +12,8 @@ export function createSupabaseServerClient(cookies?: AstroCookies) {
           ...options,
           path: '/',
           sameSite: 'lax',
-          secure: false,
+          // Secure in production (HTTPS); plain HTTP still works in local dev
+          secure: import.meta.env.PROD,
         });
       }
     },

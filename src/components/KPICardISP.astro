@@ -1,25 +1,29 @@
 ---
 interface Props {
   ispName: string;
-  actual: number;
+  actual: number | null;
   sla: number;
-  status: 'safe' | 'critical';
+  status: 'safe' | 'critical' | 'no-data';
 }
 
 const { ispName, actual, sla, status } = Astro.props;
 
-const badgeText = status === 'safe' ? 'Memenuhi' : 'Tidak Memenuhi';
-const badgeClasses = status === 'safe' 
-  ? 'bg-green-100 text-green-800' 
-  : 'bg-red-100 text-red-800';
-const borderColor = status === 'safe' ? 'border-green-500' : 'border-red-500';
+const isNoData = status === 'no-data';
+const badgeText = isNoData ? 'Tidak ada data' : status === 'safe' ? 'Memenuhi' : 'Tidak Memenuhi';
+const badgeClasses = isNoData
+  ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+  : status === 'safe'
+    ? 'bg-green-100 text-green-800'
+    : 'bg-red-100 text-red-800';
+const borderColor = isNoData ? 'border-gray-300' : status === 'safe' ? 'border-green-500' : 'border-red-500';
+const valueText = actual === null ? 'N/A' : `${actual}%`;
 ---
 
 <div class={`bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900 p-3 sm:p-4 border-l-4 ${borderColor}`}>
   <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 font-medium">Ketersediaan {ispName}</p>
   <div class="flex justify-between items-start sm:items-center mt-2 gap-2">
     <div class="flex-1">
-      <p class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{actual}%</p>
+      <p class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{valueText}</p>
       <p class="text-xs text-gray-500 dark:text-gray-400">Target: {sla}%</p>
     </div>
     <span class={`px-2 py-1 rounded text-xs font-semibold whitespace-nowrap ${badgeClasses}`}>

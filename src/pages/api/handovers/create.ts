@@ -1,15 +1,19 @@
 import type { APIRoute } from 'astro';
 import { createSupabaseServerClient } from '../../../lib/supabase';
+import { jsonResponse, serverError } from '../../../lib/http';
 
 export const POST: APIRoute = async ({ request, cookies }) => {
-  const body = await request.json();
+  let body: any;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ error: 'Invalid JSON body' }, 400);
+  }
+
   const { title, description, shift_info } = body;
 
   if (!title) {
-    return new Response(JSON.stringify({ error: 'Title is required' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return jsonResponse({ error: 'Title is required' }, 400);
   }
 
   const supabase = createSupabaseServerClient(cookies);
@@ -26,23 +30,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     ])
     .select();
 
-  if (error) {
-    // Fallback if Supabase table not created yet
-    return new Response(JSON.stringify({
-      id: Date.now().toString(),
-      title,
-      description,
-      status: 'open',
-      shift_info: shift_info || 'Shift Aktif',
-      created_at: new Date().toISOString()
-    }), {
-      status: 201,
-      headers: { 'Content-Type': 'application/json' }
-    });
+  if (error || !data || data.length === 0) {
+    return serverError('HANDOVERS CREATE', error ?? new Error('Insert returned no row'));
   }
 
-  return new Response(JSON.stringify(data[0]), {
-    status: 201,
-    headers: { 'Content-Type': 'application/json' }
-  });
+  return jsonResponse(data[0], 201);
 };

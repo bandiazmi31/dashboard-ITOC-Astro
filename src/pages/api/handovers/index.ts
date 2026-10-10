@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { createSupabaseServerClient } from '../../../lib/supabase';
+import { jsonResponse, serverError } from '../../../lib/http';
 
 export const GET: APIRoute = async ({ cookies, request }) => {
   const supabase = createSupabaseServerClient(cookies);
@@ -13,32 +14,8 @@ export const GET: APIRoute = async ({ cookies, request }) => {
     .order('created_at', { ascending: false });
 
   if (error) {
-    // Fallback mock handovers if table doesn't exist yet
-    return new Response(JSON.stringify([
-      {
-        id: '1',
-        title: 'Update signature Palo Alto dijadwalkan malam ini',
-        description: 'Pastikan koordinasi dengan tim network.',
-        status: 'open',
-        shift_info: 'Sel, 6 Okt, shift Sore - Head Office',
-        created_at: new Date().toISOString()
-      },
-      {
-        id: '2',
-        title: 'Review alert Zabbix link Lintasarta',
-        description: 'Fluktuasi trafik terdeteksi pada pukul 14:00.',
-        status: 'open',
-        shift_info: 'Sel, 6 Okt, shift Pagi - Head Office',
-        created_at: new Date().toISOString()
-      }
-    ]), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return serverError('HANDOVERS LIST', error);
   }
 
-  return new Response(JSON.stringify(data), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' }
-  });
+  return jsonResponse(data ?? []);
 };
