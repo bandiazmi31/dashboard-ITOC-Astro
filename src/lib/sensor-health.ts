@@ -19,7 +19,7 @@ export type HealthStatus = 'normal' | 'attention' | 'critical' | 'no-data';
  * The label on top is text-only: amber is light enough that white text would not meet contrast.
  */
 export const HEALTH_STATUS_META: Record<HealthStatus, { label: string; colorClass: string; textClass: string }> = {
-  normal: { label: 'Normal', colorClass: 'bg-green-600', textClass: 'text-white' },
+  normal: { label: 'Normal', colorClass: 'bg-green-700', textClass: 'text-white' },
   attention: { label: 'Perlu perhatian', colorClass: 'bg-amber-500', textClass: 'text-gray-900' },
   critical: { label: 'Kritis', colorClass: 'bg-red-600', textClass: 'text-white' },
   'no-data': { label: 'Data tidak tersedia', colorClass: 'bg-gray-500', textClass: 'text-white' },

@@ -6,9 +6,9 @@ import { jakartaDate } from '../lib/dates';
 ---
 
 <Layout>
-  <div class="space-y-6">
+  <div class="bento">
     <!-- Page Title & Description -->
-    <div>
+    <div class="md:col-span-2 lg:col-span-6">
       <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Kelengkapan Data</h2>
       <p class="text-sm text-gray-600 dark:text-gray-300 mt-1">
         Halaman ini menampilkan status kelengkapan data harian dari sistem monitoring (Palo Alto, PRTG).
@@ -16,13 +16,13 @@ import { jakartaDate } from '../lib/dates';
       </p>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+    <div class="md:col-span-2 lg:col-span-6 grid grid-cols-1 md:grid-cols-2 gap-4">
       <PRTGUploadWidget />
       <SOCUploadWidget defaultDate={jakartaDate()} />
     </div>
 
     <!-- Completeness status: no live source exists yet -->
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900 p-10 flex flex-col items-center justify-center text-center">
+    <div class="bento-tile md:col-span-2 lg:col-span-6 p-10 flex flex-col items-center justify-center text-center">
       <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Data belum tersedia</h3>
       <p class="mt-2 max-w-md text-sm text-gray-500 dark:text-gray-400">
         Status kelengkapan harian laporan SOC, PDF PRTG, dan cakupan sensor akan ditampilkan setelah sumber datanya tersedia.

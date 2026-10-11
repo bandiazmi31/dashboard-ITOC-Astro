@@ -42,30 +42,32 @@ const topDowntime = noc
 ---
 
 <Layout>
-  <div class="space-y-6">
-    <DateFilter
-      from={from}
-      to={to}
-    />
+  <div class="bento">
+    <div class="md:col-span-2 lg:col-span-6">
+      <DateFilter
+        from={from}
+        to={to}
+      />
+    </div>
 
-    {loadError && <DataError message={loadError} />}
+    {loadError && <div class="md:col-span-2 lg:col-span-6"><DataError message={loadError} /></div>}
 
     {noc && (
       <>
         <!-- NOC KPI Cards - ISP Availability -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {noc.kpi.ispAvailability.map(isp => (
+        {noc.kpi.ispAvailability.map(isp => (
+          <div class="lg:col-span-2">
             <KPICardISP
               ispName={isp.name}
               actual={isp.actual}
               sla={isp.sla}
               status={isp.status}
             />
-          ))}
-        </div>
+          </div>
+        ))}
 
         <!-- Trend Charts (2 columns) -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="md:col-span-2 lg:col-span-3">
           <Chart
             id="nocIspTrendChart"
             type="line"
@@ -95,7 +97,8 @@ const topDowntime = noc
               }
             ]}
           />
-
+        </div>
+        <div class="md:col-span-2 lg:col-span-3">
           <Chart
             id="nocTrafficTrendChart"
             type="line"
@@ -114,7 +117,7 @@ const topDowntime = noc
         </div>
 
         <!-- Analytics Tables (Full-width Stacked) -->
-        <div class="space-y-6">
+        <div class="md:col-span-2 lg:col-span-6 space-y-4">
           <TopNTable
             title="Sensor dengan Downtime (20 Terbesar)"
             columns={['Tanggal', 'Sensor', 'Lokasi', 'Downtime']}

@@ -45,39 +45,49 @@ const noc = nocResult;
 ---
 
 <Layout>
-  <div class="space-y-6">
+  <div class="bento">
     <!-- Tickets Widget (Real-time from ManageEngine) -->
-    <TicketsWidget />
+    <div class="md:col-span-2 lg:col-span-6">
+      <TicketsWidget />
+    </div>
 
-    {loadError && <DataError message={loadError} />}
+    {loadError && <div class="md:col-span-2 lg:col-span-6"><DataError message={loadError} /></div>}
 
     {soc && noc && (
       <>
         <!-- SOC KPI Cards -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="lg:col-span-2">
           <KPICard
             label="Total Kejadian Ancaman"
             value={soc.kpi.totalThreats}
             status="info"
           />
+        </div>
+        <div class="lg:col-span-2">
           <KPICard
             label="High/Critical Threats"
             value={soc.kpi.highCriticalThreats}
             unit={`(${soc.kpi.highCriticalPercentage}%)`}
             status={soc.kpi.highCriticalPercentage > 5 ? 'warning' : 'safe'}
           />
+        </div>
+        <div class="lg:col-span-2">
           <KPICard
             label="Ancaman Diblokir"
             value={`${soc.kpi.blockedPercentage}%`}
             unit={`(${soc.kpi.blockedThreats} kejadian)`}
             status="safe"
           />
+        </div>
+        <div class="lg:col-span-3">
           <KPICard
             label="Host Internal Terimbas"
             value={soc.kpi.internalHostCount}
             unit="host"
             status="info"
           />
+        </div>
+        <div class="lg:col-span-3">
           <KPICard
             label="Trafik Aplikasi"
             value={soc.kpi.applicationVolume}
@@ -86,19 +96,19 @@ const noc = nocResult;
         </div>
 
         <!-- NOC KPI Cards - ISP Availability -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {noc.kpi.ispAvailability.map(isp => (
+        {noc.kpi.ispAvailability.map(isp => (
+          <div class="lg:col-span-2">
             <KPICardISP
               ispName={isp.name}
               actual={isp.actual}
               sla={isp.sla}
               status={isp.status}
             />
-          ))}
-        </div>
+          </div>
+        ))}
 
         <!-- Trend Charts (SOC & NOC) -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        <div class="md:col-span-2 lg:col-span-3">
           <Chart
             id="socTrendChart"
             type="line"
@@ -121,6 +131,8 @@ const noc = nocResult;
               }
             ]}
           />
+        </div>
+        <div class="md:col-span-2 lg:col-span-3">
           <Chart
             id="nocTrendChart"
             type="line"
@@ -153,7 +165,7 @@ const noc = nocResult;
         </div>
 
         <!-- Sensor honeycomb (same source as the NOC page) -->
-        <div class="mt-4">
+        <div class="md:col-span-2 lg:col-span-6">
           <SensorHoneycomb
             title="Status Kesehatan Sensor"
             sensors={noc.devices.map(d => ({

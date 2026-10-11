@@ -16,52 +16,69 @@ if (data.session) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Login - ITOC Dashboard</title>
   </head>
-  <body class="flex items-center justify-center min-h-screen bg-gray-100">
-    <div class="bg-white rounded-lg shadow-lg p-8 max-w-md w-full">
-      <h1 class="text-2xl font-bold text-center text-gray-900 mb-6">
-        Dashboard ITOC
-      </h1>
-      <p class="text-center text-gray-600 text-sm mb-6">
-        PT Pelindo Multi Terminal
-      </p>
-      
-      <form action="/api/auth/login" method="POST" class="space-y-4">
+  <body class="min-h-screen flex items-center justify-center p-4 bg-[url('/bg-pelindo.jpg')] bg-cover bg-center bg-no-repeat text-white relative">
+    <!-- Dark scrim keeps white text readable over the photo -->
+    <div class="fixed inset-0 bg-black/30" aria-hidden="true"></div>
+
+    <main class="relative w-full max-w-md rounded-2xl border border-white/20 bg-white/10 backdrop-blur-lg shadow-2xl p-8 sm:p-10">
+      <header class="text-center mb-8">
+        <h1 class="text-2xl font-bold tracking-tight text-white text-shadow-soft">
+          Dashboard ITOC
+        </h1>
+        <p class="mt-2 text-sm text-white/90 text-shadow-soft">
+          PT Pelindo Multi Terminal
+        </p>
+      </header>
+
+      <form action="/api/auth/login" method="POST" class="space-y-5">
         <div>
-          <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
-          <input 
-            type="email" 
-            id="email" 
-            name="email" 
-            required 
-            class="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          <label for="email" class="block text-sm font-medium text-white/90 text-shadow-soft">Email</label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            required
+            autocomplete="username"
+            class="glass-input w-full mt-1.5 px-3 py-2.5 rounded-lg bg-white/20 border border-white/30 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-shadow"
           />
         </div>
-        
+
         <div>
-          <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
-          <input 
-            type="password" 
-            id="password" 
-            name="password" 
-            required 
-            class="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          <label for="password" class="block text-sm font-medium text-white/90 text-shadow-soft">Password</label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            required
+            autocomplete="current-password"
+            class="glass-input w-full mt-1.5 px-3 py-2.5 rounded-lg bg-white/20 border border-white/30 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-shadow"
           />
         </div>
-        
-        <button 
-          type="submit" 
-          class="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition"
+
+        <button
+          type="submit"
+          class="w-full mt-2 py-2.5 rounded-lg font-semibold text-white bg-gradient-to-r from-blue-700 to-indigo-700 shadow-lg hover:from-blue-800 hover:to-indigo-800 hover:scale-[1.02] active:scale-[0.99] motion-reduce:transform-none transition duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
         >
           Masuk
         </button>
       </form>
-    </div>
+    </main>
 
     <style is:global>
       body {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
           'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
           sans-serif;
+      }
+      .text-shadow-soft {
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+      }
+      /* Keep autofilled fields on the glass look instead of the browser's white */
+      .glass-input:-webkit-autofill,
+      .glass-input:-webkit-autofill:focus {
+        -webkit-text-fill-color: #ffffff;
+        -webkit-box-shadow: 0 0 0 1000px rgba(30, 41, 59, 0.6) inset;
+        transition: background-color 9999s ease-out;
       }
     </style>
   </body>

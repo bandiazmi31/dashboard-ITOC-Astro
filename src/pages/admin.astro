@@ -4,18 +4,20 @@ import HandoverWidget from '../components/HandoverWidget.astro';
 ---
 
 <Layout>
-  <div class="space-y-6">
+  <div class="bento">
     <!-- Page Title -->
-    <div>
+    <div class="md:col-span-2 lg:col-span-6">
       <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Admin</h2>
       <p class="text-sm text-gray-600 dark:text-gray-300 mt-1">Panel pengaturan sistem dan serah terima.</p>
     </div>
 
     <!-- Handover Widget (live: backed by the handovers API) -->
-    <HandoverWidget />
+    <div class="md:col-span-2 lg:col-span-6">
+      <HandoverWidget />
+    </div>
 
     <!-- Settings placeholder: the earlier settings controls were not wired to anything -->
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900 p-10 flex flex-col items-center justify-center text-center">
+    <div class="bento-tile md:col-span-2 lg:col-span-6 p-10 flex flex-col items-center justify-center text-center">
       <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Pengaturan admin sedang dalam pengembangan</h3>
       <p class="mt-2 max-w-md text-sm text-gray-500 dark:text-gray-400">
         Pengaturan ambang batas dan sinkronisasi akan tersedia pada rilis berikutnya.
