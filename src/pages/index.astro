@@ -4,7 +4,7 @@ import KPICard from '../components/KPICard.astro';
 import KPICardISP from '../components/KPICardISP.astro';
 import TicketsWidget from '../components/TicketsWidget.astro';
 import Chart from '../components/Chart.astro';
-import TopNTable from '../components/TopNTable.astro';
+import SensorHoneycomb from '../components/SensorHoneycomb.astro';
 import DataError from '../components/DataError.astro';
 import { jakartaDate, jakartaDaysAgo } from '../lib/dates';
 import { createSupabaseServerClient } from '../lib/supabase';
@@ -152,13 +152,16 @@ const noc = nocResult;
           />
         </div>
 
-        <!-- Live sensor table (same source as the NOC page) -->
-        <div class="overflow-x-auto mt-4">
-          <TopNTable
-            title="Seluruh Sensor"
-            columns={['Tanggal', 'Sensor', 'Lokasi', 'Ketersediaan %', 'Trafik (Mbps)']}
-            data={noc.devices.map(d => ({ date: d.date, sensor: d.sensor, location: d.device, availability: d.availability === null ? 'N/A' : `${d.availability}%`, traffic: d.traffic }))}
-            limit={50}
+        <!-- Sensor honeycomb (same source as the NOC page) -->
+        <div class="mt-4">
+          <SensorHoneycomb
+            title="Status Kesehatan Sensor"
+            sensors={noc.devices.map(d => ({
+              sensorName: d.sensor,
+              location: d.device,
+              availability: d.availability,
+              date: d.date,
+            }))}
           />
         </div>
       </>

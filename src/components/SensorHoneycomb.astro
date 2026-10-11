@@ -1,0 +1,367 @@
+---
+import {
+  HEALTH_STATUS_META,
+  HEALTH_STATUS_ORDER,
+  classifyAvailability,
+  countByStatus,
+  formatAvailability,
+  parseAvailability,
+  type HealthStatus,
+} from '../lib/sensor-health';
+
+export interface HoneycombSensor {
+  sensorName: string | null;
+  location: string | null;
+  /** Raw availability from the data source: number, "99.59%" style string, or null */
+  availability: unknown;
+  date: string | null;
+}
+
+interface Props {
+  title?: string;
+  sensors: HoneycombSensor[];
+}
+
+const { title = 'Status Kesehatan Sensor', sensors = [] } = Astro.props;
+
+const cells = sensors.map(sensor => {
+  const availability = parseAvailability(sensor.availability);
+  const status: HealthStatus = classifyAvailability(availability);
+  return {
+    sensor: sensor.sensorName || 'Nama sensor tidak tersedia',
+    location: sensor.location || 'Lokasi tidak tersedia',
+    date: sensor.date || '-',
+    availability: formatAvailability(availability),
+    status,
+    statusLabel: HEALTH_STATUS_META[status].label,
+    colorClass: HEALTH_STATUS_META[status].colorClass,
+    textClass: HEALTH_STATUS_META[status].textClass,
+  };
+});
+
+const counts = countByStatus(cells.map(c => c.status));
+---
+
+<section class="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900 p-3 sm:p-4" data-sensor-honeycomb>
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+    <h3 class="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">{title}</h3>
+    <p class="text-xs text-gray-500 dark:text-gray-400">{cells.length} sensor</p>
+  </div>
+
+  <!-- Legend with counts computed from the displayed records -->
+  <ul class="flex flex-wrap gap-x-4 gap-y-2 mb-4 text-xs text-gray-700 dark:text-gray-300" aria-label="Keterangan status">
+    {HEALTH_STATUS_ORDER.map(status => (
+      <li class="flex items-center gap-1.5">
+        <span class={`inline-block w-3 h-3 rounded-sm ${HEALTH_STATUS_META[status].colorClass}`} aria-hidden="true"></span>
+        <span>{HEALTH_STATUS_META[status].label}</span>
+        <span class="font-semibold text-gray-900 dark:text-white" data-count={status}>({counts[status]})</span>
+      </li>
+    ))}
+  </ul>
+
+  {cells.length === 0 ? (
+    <div class="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+      Tidak ada data sensor untuk rentang tanggal ini.
+    </div>
+  ) : (
+    <div class="overflow-x-auto">
+      <div class="sh-board" data-board>
+        {cells.map(cell => (
+          <button
+            type="button"
+            class="sh-cell"
+            aria-label={`Sensor ${cell.sensor}, lokasi ${cell.location}, ketersediaan ${cell.availability}, status ${cell.statusLabel}, tanggal ${cell.date}`}
+            data-sensor={cell.sensor}
+            data-location={cell.location}
+            data-availability={cell.availability}
+            data-status={cell.statusLabel}
+            data-date={cell.date}
+          >
+            <span class={`sh-hex ${cell.colorClass}`} aria-hidden="true"></span>
+            <span class={`sh-label ${cell.textClass}`} aria-hidden="true"><span>{cell.sensor}</span></span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )}
+
+  <div class="sh-tooltip" data-tooltip hidden aria-hidden="true">
+    <p class="font-semibold mb-1 break-words" data-t-status></p>
+    <dl class="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5">
+      <dt class="text-gray-400">Sensor</dt>
+      <dd class="break-words min-w-0" data-t-sensor></dd>
+      <dt class="text-gray-400">Lokasi</dt>
+      <dd class="break-words min-w-0" data-t-location></dd>
+      <dt class="text-gray-400">Ketersediaan</dt>
+      <dd class="min-w-0" data-t-availability></dd>
+      <dt class="text-gray-400">Tanggal</dt>
+      <dd class="min-w-0" data-t-date></dd>
+    </dl>
+  </div>
+</section>
+
+<style>
+  /* Pointy-top hexagon. Width:height is sqrt(3):2, set by the script. */
+  .sh-board {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+  }
+
+  /* Once the script lays out the cells, switch to absolute positioning */
+  .sh-board[data-laid-out] {
+    display: block;
+    position: relative;
+  }
+
+  /* --hex-w is set by the script; the default keeps the no-JS fallback at a readable size */
+  .sh-cell {
+    --hex-w: 112px;
+    display: block;
+    position: relative;
+    width: var(--hex-w);
+    height: calc(var(--hex-w) * 1.1547);
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: default;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .sh-board[data-laid-out] .sh-cell {
+    position: absolute;
+  }
+
+  .sh-hex {
+    display: block;
+    width: 100%;
+    height: 100%;
+    clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+    transition: transform 120ms ease-out, filter 120ms ease-out;
+  }
+
+  /* Label sits outside the clipped hexagon so it is not cut at the corners. Up to 3 lines; full name in the tooltip */
+  .sh-label {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 16%;
+    pointer-events: none;
+    text-align: center;
+    font-size: calc(var(--hex-w) * 0.13);
+    font-weight: 600;
+    line-height: 1.2;
+  }
+
+  .sh-label > span {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+  }
+
+  /* The outline comes from a drop-shadow on the button, because clip-path would cut a box-shadow off */
+  .sh-cell:hover,
+  .sh-cell:focus-visible {
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.9));
+    outline: none;
+  }
+
+  .sh-cell:hover .sh-hex,
+  .sh-cell:focus-visible .sh-hex {
+    transform: scale(1.06);
+    filter: brightness(1.15);
+  }
+
+  .sh-tooltip {
+    position: fixed;
+    z-index: 50;
+    width: max-content;
+    max-width: min(18rem, calc(100vw - 16px));
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.375rem;
+    background: #111827;
+    border: 1px solid #4b5563;
+    color: #f9fafb;
+    font-size: 0.75rem;
+    line-height: 1.1rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    pointer-events: none;
+    overflow-wrap: anywhere;
+  }
+
+  .sh-tooltip[hidden] {
+    display: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sh-hex {
+      transition: none;
+    }
+  }
+</style>
+
+<script>
+  // Hex geometry: cell width w, horizontal center spacing s = w + gap, vertical row spacing s * sqrt(3) / 2
+  const GAP = 6;
+  // Cell width bounds. The minimum keeps a 3-line sensor name readable on small screens.
+  const MIN_W = 88;
+  const MAX_W = 128;
+  const SQRT3 = Math.sqrt(3);
+  const SQRT3_OVER_2 = SQRT3 / 2;
+
+  type Board = HTMLElement;
+
+  function layoutBoard(board: Board) {
+    const cells = Array.from(board.querySelectorAll<HTMLElement>('.sh-cell'));
+    const n = cells.length;
+    // Measure the scroll wrapper, not the board: the board's min-width can grow and would feed back into the observer
+    const width = board.parentElement?.clientWidth ?? 0;
+    if (n === 0 || width === 0) return;
+
+    // Largest column count where each cell stays at least MIN_W wide.
+    // Odd rows are offset by half a step, so the span is cols + 0.5 when there is more than one row.
+    let cols = 1;
+    while ((width + GAP) / (cols + 1 + 0.5) >= MIN_W + GAP && cols < n) cols++;
+    cols = Math.min(cols, n);
+    const rows = Math.ceil(n / cols);
+    const span = cols + (rows > 1 ? 0.5 : 0);
+
+    let step = (width + GAP) / span;
+    let w = Math.min(MAX_W, step - GAP);
+    if (w < MIN_W) {
+      // Too narrow even for one column: keep the minimum size and let the wrapper scroll
+      w = MIN_W;
+    }
+    step = w + GAP;
+
+    const contentWidth = (cols - 1) * step + w + (rows > 1 ? step / 2 : 0);
+    const left0 = Math.max(0, (width - contentWidth) / 2);
+    const h = (w * 2) / SQRT3;
+    const rowStep = step * SQRT3_OVER_2;
+    const contentHeight = (rows - 1) * rowStep + h;
+
+    board.style.height = `${contentHeight}px`;
+    board.style.minWidth = contentWidth > width ? `${contentWidth}px` : '';
+    board.setAttribute('data-laid-out', '');
+
+    cells.forEach((cell, i) => {
+      const row = Math.floor(i / cols);
+      const col = i % cols;
+      const x = left0 + col * step + (row % 2 === 1 ? step / 2 : 0);
+      const y = row * rowStep;
+      cell.style.left = `${x}px`;
+      cell.style.top = `${y}px`;
+      cell.style.setProperty('--hex-w', `${w}px`);
+      cell.style.width = `${w}px`;
+      cell.style.height = `${h}px`;
+    });
+  }
+
+  function setupHoneycomb(root: HTMLElement) {
+    const board = root.querySelector<HTMLElement>('[data-board]');
+    const tooltip = root.querySelector<HTMLElement>('[data-tooltip]');
+    if (!board || !tooltip) return;
+
+    const fields = {
+      status: tooltip.querySelector<HTMLElement>('[data-t-status]'),
+      sensor: tooltip.querySelector<HTMLElement>('[data-t-sensor]'),
+      location: tooltip.querySelector<HTMLElement>('[data-t-location]'),
+      availability: tooltip.querySelector<HTMLElement>('[data-t-availability]'),
+      date: tooltip.querySelector<HTMLElement>('[data-t-date]'),
+    };
+
+    let activeCell: HTMLElement | null = null;
+
+    // Position the tooltip in viewport coordinates, above the cell when possible, and keep it on screen
+    function positionTooltip(cell: HTMLElement) {
+      const rect = cell.getBoundingClientRect();
+      const tw = tooltip!.offsetWidth;
+      const th = tooltip!.offsetHeight;
+      const vw = document.documentElement.clientWidth;
+      const vh = window.innerHeight;
+      const margin = 8;
+
+      let left = rect.left + rect.width / 2 - tw / 2;
+      left = Math.min(Math.max(left, margin), vw - tw - margin);
+
+      let top = rect.top - th - margin;
+      if (top < margin) top = rect.bottom + margin;
+      top = Math.min(Math.max(top, margin), vh - th - margin);
+
+      tooltip!.style.left = `${left}px`;
+      tooltip!.style.top = `${top}px`;
+    }
+
+    function showTooltip(cell: HTMLElement) {
+      activeCell = cell;
+      // Text is set with textContent, never innerHTML, so sensor names are not interpreted as markup
+      fields.status!.textContent = cell.dataset.status ?? '';
+      fields.sensor!.textContent = cell.dataset.sensor ?? '';
+      fields.location!.textContent = cell.dataset.location ?? '';
+      fields.availability!.textContent = cell.dataset.availability ?? '';
+      fields.date!.textContent = cell.dataset.date ?? '';
+      tooltip!.hidden = false;
+      positionTooltip(cell);
+    }
+
+    function hideTooltip() {
+      activeCell = null;
+      tooltip!.hidden = true;
+    }
+
+    board.addEventListener('pointerenter', e => {
+      const cell = (e.target as HTMLElement).closest<HTMLElement>('.sh-cell');
+      if (cell && (e as PointerEvent).pointerType === 'mouse') showTooltip(cell);
+    }, true);
+
+    board.addEventListener('pointerleave', e => {
+      const cell = (e.target as HTMLElement).closest<HTMLElement>('.sh-cell');
+      if (cell && (e as PointerEvent).pointerType === 'mouse') hideTooltip();
+    }, true);
+
+    // Keyboard focus shows the same tooltip; tapping a cell on touch devices shows it on click
+    board.addEventListener('focusin', e => {
+      const cell = (e.target as HTMLElement).closest<HTMLElement>('.sh-cell');
+      if (cell) showTooltip(cell);
+    });
+
+    board.addEventListener('focusout', e => {
+      const cell = (e.target as HTMLElement).closest<HTMLElement>('.sh-cell');
+      if (cell && cell === activeCell) hideTooltip();
+    });
+
+    board.addEventListener('click', e => {
+      const cell = (e.target as HTMLElement).closest<HTMLElement>('.sh-cell');
+      if (cell) showTooltip(cell);
+    });
+
+    document.addEventListener('pointerdown', e => {
+      if (!(e.target as HTMLElement).closest?.('[data-sensor-honeycomb]')) hideTooltip();
+    });
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') hideTooltip();
+    });
+
+    window.addEventListener('scroll', () => {
+      if (activeCell) positionTooltip(activeCell);
+    }, { passive: true });
+
+    window.addEventListener('resize', () => {
+      if (activeCell) positionTooltip(activeCell);
+    });
+
+    layoutBoard(board);
+    if (board.parentElement) {
+      new ResizeObserver(() => layoutBoard(board)).observe(board.parentElement);
+    }
+  }
+
+  document.querySelectorAll<HTMLElement>('[data-sensor-honeycomb]').forEach(setupHoneycomb);
+</script>
