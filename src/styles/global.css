@@ -11,3 +11,15 @@
   animation-duration: 180ms;
   animation-timing-function: ease-out;
 }
+
+/*
+ * Bento grid: shared tile surface and grid. Pages set column spans per tile
+ * (for example lg:col-span-3); tiles stack on phones.
+ */
+.bento {
+  @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 auto-rows-min;
+}
+
+.bento-tile {
+  @apply rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm dark:shadow-gray-900;
+}
