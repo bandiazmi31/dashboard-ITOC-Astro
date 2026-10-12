@@ -24,8 +24,8 @@ import Layout from '../layouts/Layout.astro';
     <!-- Content -->
     <div data-state="content" class="hidden bento">
 
-      <!-- Top row: active shift and 7-day pattern side by side -->
-      <div class="md:col-span-2 lg:col-span-6 grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+      <!-- Top section: active shift beside the shift timeline on xl+, stacked below that -->
+      <div class="md:col-span-2 lg:col-span-6 grid grid-cols-1 xl:grid-cols-[450px_minmax(0,1fr)] gap-6 items-stretch">
       <!-- On duty today -->
       <section class="bento-tile flex flex-col p-4 sm:p-5" aria-labelledby="duty-title">
         <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-1">
@@ -38,13 +38,20 @@ import Layout from '../layouts/Layout.astro';
         <div data-duty class="mt-6 flex flex-1 items-center justify-center"></div>
       </section>
 
-      <!-- Schedule pattern: next 7 days -->
-      <section class="bento-tile flex flex-col p-4 sm:p-5" aria-labelledby="week-title">
-        <h3 id="week-title" class="text-base font-semibold text-gray-900 dark:text-white">Pola Jadwal 7 Hari ke Depan</h3>
-        <div class="mt-3 flex-1 overflow-x-auto" tabindex="0" role="region" aria-labelledby="week-title">
-          <table class="w-full text-center text-xs border-separate border-spacing-1">
-            <thead data-week-head></thead>
-            <tbody data-week-body></tbody>
+      <!-- Shift timeline: today and the next 30 days -->
+      <section class="bento-tile min-w-0 p-4 sm:p-5" aria-labelledby="shift-title">
+        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
+          <div>
+            <h3 id="shift-title" class="text-base font-semibold text-gray-900 dark:text-white">Jadwal Shift ITOC</h3>
+            <p class="text-xs text-gray-700 dark:text-gray-400">Geser horizontal untuk melihat seluruh tanggal.</p>
+          </div>
+          <ul data-legend class="flex flex-wrap gap-x-4 gap-y-2 text-xs text-gray-800 dark:text-gray-300"></ul>
+        </div>
+        <div class="mt-3 overflow-x-auto max-h-[28rem] rounded-xl border border-gray-200 dark:border-gray-700 shift-scroll" tabindex="0" role="region" aria-labelledby="shift-title">
+          <table class="text-center border-separate border-spacing-0 text-xs">
+            <caption class="sr-only">Jadwal shift tiap tim, mulai hari ini</caption>
+            <thead data-shift-head></thead>
+            <tbody data-shift-body></tbody>
           </table>
         </div>
       </section>
@@ -54,32 +61,33 @@ import Layout from '../layouts/Layout.astro';
       <!-- Roster: one column per team -->
       <section class="bento-tile md:col-span-2 lg:col-span-6 p-4 sm:p-5" aria-labelledby="roster-title">
         <h3 id="roster-title" class="text-base font-semibold text-gray-900 dark:text-white">Roster Personel per Tim</h3>
-        <div data-roster class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+        <button type="button" class="accordion-toggle md:hidden mt-3 w-full flex items-center justify-between gap-2 rounded-lg border border-slate-600 bg-slate-800 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" aria-expanded="false" aria-controls="roster-panel" data-accordion-name="Roster Personel">
+          <span data-accordion-label>Tampilkan Roster Personel</span>
+          <svg class="w-4 h-4 shrink-0 transition-transform duration-200 motion-reduce:transition-none" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"></path>
+          </svg>
+        </button>
+        <!-- Collapsed on mobile until the toggle is pressed; always shown from md up -->
+        <div id="roster-panel" class="hidden md:block mt-4">
+          <div data-roster class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+        </div>
       </section>
 
       <!-- Locations -->
       <section class="bento-tile md:col-span-2 lg:col-span-6 p-4 sm:p-5" aria-labelledby="lokasi-title">
         <h3 id="lokasi-title" class="text-base font-semibold text-gray-900 dark:text-white">Lokasi &amp; PIC</h3>
-        <div data-locations class="mt-4 grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-3"></div>
+        <button type="button" class="accordion-toggle md:hidden mt-3 w-full flex items-center justify-between gap-2 rounded-lg border border-slate-600 bg-slate-800 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" aria-expanded="false" aria-controls="lokasi-panel" data-accordion-name="Lokasi &amp; PIC">
+          <span data-accordion-label>Tampilkan Lokasi &amp; PIC</span>
+          <svg class="w-4 h-4 shrink-0 transition-transform duration-200 motion-reduce:transition-none" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"></path>
+          </svg>
+        </button>
+        <!-- Collapsed on mobile until the toggle is pressed; always shown from md up -->
+        <div id="lokasi-panel" class="hidden md:block mt-4">
+          <div data-locations class="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-3"></div>
+        </div>
       </section>
 
-      <!-- Full-year roster -->
-      <section class="bento-tile md:col-span-2 lg:col-span-6 p-4 sm:p-5" aria-labelledby="shift-title">
-        <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
-          <div>
-            <h3 id="shift-title" class="text-base font-semibold text-gray-900 dark:text-white">Jadwal Shift ITOC</h3>
-            <p class="text-xs text-gray-700 dark:text-gray-400">Geser horizontal untuk melihat seluruh tanggal.</p>
-          </div>
-          <ul data-legend class="flex flex-wrap gap-x-4 gap-y-2 text-xs text-gray-800 dark:text-gray-300"></ul>
-        </div>
-        <div class="mt-3 overflow-x-auto max-h-[28rem]" tabindex="0" role="region" aria-labelledby="shift-title">
-          <table class="text-center border-collapse text-xs">
-            <caption class="sr-only">Jadwal shift tiap tim per tanggal</caption>
-            <thead data-shift-head></thead>
-            <tbody data-shift-body></tbody>
-          </table>
-        </div>
-      </section>
     </div>
   </div>
 </Layout>
@@ -94,6 +102,11 @@ import Layout from '../layouts/Layout.astro';
   [tabindex='0']:focus-visible {
     @apply outline-none ring-2 ring-blue-500 ring-offset-2 ring-offset-white dark:ring-offset-gray-800;
   }
+  /* Thin scrollbar for the shift timeline, in the dark slate palette */
+  .shift-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(71 85 105) transparent;
+  }
   @media (prefers-reduced-motion: reduce) {
     .animate-pulse {
       animation: none;
@@ -102,6 +115,8 @@ import Layout from '../layouts/Layout.astro';
 </style>
 
 <script>
+  import { SHIFT_NAME, jakartaNow, resolveDuty } from '../lib/shift';
+
   // Shift code colours. White text on each fill meets 4.5:1; the letter is always shown too.
   const SHIFT_CLASS: Record<string, string> = {
     P: 'bg-sky-700 text-white',
@@ -109,7 +124,6 @@ import Layout from '../layouts/Layout.astro';
     M: 'bg-purple-700 text-white',
     O: 'bg-gray-600 text-white',
   };
-  const SHIFT_NAME: Record<string, string> = { P: 'Pagi', S: 'Sore', M: 'Malam' };
   const SHIFT_ORDER = ['P', 'S', 'M'];
 
   type Member = { role: string; name: string; phone: string };
@@ -188,23 +202,6 @@ import Layout from '../layouts/Layout.astro';
     $('[data-clock]').textContent = `${clockFmt.format(new Date())} WIB`;
   };
 
-  // Jakarta clock. Malam runs 22:00-08:00, so 00:00-08:00 belongs to the previous day's schedule.
-  const jakartaNow = () => {
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-    }).formatToParts(new Date());
-    const get = (type: string) => parts.find(part => part.type === type)?.value ?? '';
-    return { iso: `${get('year')}-${get('month')}-${get('day')}`, hour: Number(get('hour')), minute: Number(get('minute')) };
-  };
-
-  const shiftAt = (hour: number) => (hour >= 8 && hour < 15 ? 'P' : hour >= 15 && hour < 22 ? 'S' : 'M');
-
-  const previousIso = (iso: string) => {
-    const d = parseIsoDate(iso);
-    d.setDate(d.getDate() - 1);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  };
-
   // Glow colour of the hero card, one per shift
   const HERO_CLASS: Record<string, string> = {
     P: 'border-sky-600 shadow-[0_0_36px_-8px_rgba(2,132,199,0.75)]',
@@ -219,27 +216,26 @@ import Layout from '../layouts/Layout.astro';
     $('[data-today-date]').textContent = longDate.format(parseIsoDate(now.iso));
     container.replaceChildren();
 
-    const code = shiftAt(now.hour);
-    const dayIso = code === 'M' && now.hour < 8 ? previousIso(now.iso) : now.iso;
-    const idx = p.jadwal.dates.indexOf(dayIso);
-    const team = idx === -1 ? undefined : p.jadwal.teams.find(t => t.codes[idx] === code);
+    const duty = resolveDuty(p.jadwal, now);
+    const code = duty.code;
 
-    if (!team) {
+    if (duty.status !== 'on-duty' || !duty.team) {
       container.appendChild(el('p', 'text-sm text-center text-gray-700 dark:text-gray-400',
-        idx === -1 ? 'Jadwal untuk waktu ini belum tersedia.' : 'Tidak ada tim yang bertugas saat ini.'));
+        duty.status === 'no-schedule' ? 'Jadwal untuk waktu ini belum tersedia.' : 'Tidak ada tim yang bertugas saat ini.'));
       return;
     }
+    const teamName = duty.team;
 
-    const rosterTeam = p.summary.roster.find(r => r.team.trim().toLowerCase() === team.team.trim().toLowerCase());
+    const rosterTeam = p.summary.roster.find(r => r.team.trim().toLowerCase() === teamName.trim().toLowerCase());
     const timeLabel = p.jadwal.legend.find(l => l.code === code)?.label ?? '';
 
     const card = el('article', `w-full max-w-3xl rounded-2xl border-2 bg-gray-50 dark:bg-gray-900 p-6 sm:p-8 ${HERO_CLASS[code] ?? ''}`);
-    card.setAttribute('aria-label', `Sedang bertugas: shift ${SHIFT_NAME[code]}, ${team.team}`);
+    card.setAttribute('aria-label', `Sedang bertugas: shift ${SHIFT_NAME[code]}, ${teamName}`);
 
     const head = el('div', 'flex items-start justify-between gap-4');
     const title = el('div');
     title.appendChild(el('p', 'text-xs font-semibold uppercase tracking-widest text-gray-700 dark:text-gray-400', 'Sedang bertugas'));
-    title.appendChild(el('p', 'mt-1 text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white', `Shift ${SHIFT_NAME[code]} · ${team.team}`));
+    title.appendChild(el('p', 'mt-1 text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white', `Shift ${SHIFT_NAME[code]} · ${teamName}`));
     if (timeLabel) title.appendChild(el('p', 'mt-1 text-sm text-gray-700 dark:text-gray-400', timeLabel));
     const big = pill(code);
     big.classList.replace('w-7', 'w-12');
@@ -284,46 +280,6 @@ import Layout from '../layouts/Layout.astro';
     }
   };
 
-  const renderWeek = (p: ItocPayload) => {
-    const head = $('[data-week-head]');
-    const body = $('[data-week-body]');
-    head.replaceChildren();
-    body.replaceChildren();
-    const start = p.jadwal.dates.indexOf(todayIso());
-    if (start === -1 || p.jadwal.teams.length === 0) {
-      body.appendChild(emptyRow(8));
-      return;
-    }
-    const indices = Array.from({ length: 7 }, (_, i) => start + i).filter(i => i < p.jadwal.dates.length);
-
-    const headRow = el('tr');
-    headRow.appendChild(el('th', 'text-left text-xs font-semibold text-gray-700 dark:text-gray-400', 'Tim'));
-    for (const i of indices) {
-      const d = parseIsoDate(p.jadwal.dates[i]);
-      const th = el('th', 'font-semibold text-gray-900 dark:text-gray-200 whitespace-nowrap');
-      th.scope = 'col';
-      th.textContent = shortDay.format(d);
-      th.appendChild(el('div', 'font-normal text-gray-700 dark:text-gray-400', weekday.format(d)));
-      headRow.appendChild(th);
-    }
-    head.appendChild(headRow);
-
-    for (const team of p.jadwal.teams) {
-      const tr = el('tr');
-      const name = el('th', 'text-left font-semibold text-gray-900 dark:text-white whitespace-nowrap pr-2', team.team);
-      name.scope = 'row';
-      tr.appendChild(name);
-      for (const i of indices) {
-        const td = el('td', 'p-0');
-        const span = pill(team.codes[i]);
-        span.classList.add('mx-auto');
-        td.appendChild(span);
-        tr.appendChild(td);
-      }
-      body.appendChild(tr);
-    }
-  };
-
   // "Zulfadly (081266624285) / Zulfadhli (089603437055)" -> one entry per PIC
   const parsePics = (pic: string) =>
     pic
@@ -363,15 +319,26 @@ import Layout from '../layouts/Layout.astro';
     }
   };
 
-  const renderLegend = (jadwal: ItocPayload['jadwal']) => {
+  // Legend codes with their hours, shown at the top right of the timeline
+  const SHIFT_HOURS: Record<string, string> = { P: '08:00-15:00', S: '15:00-22:00', M: '22:00-08:00' };
+  const renderLegend = () => {
     const legend = $('[data-legend]');
     legend.replaceChildren();
-    for (const item of jadwal.legend) {
+    for (const code of ['P', 'S', 'M', 'O']) {
       const li = el('li', 'flex items-center gap-2');
-      const swatch = el('span', `inline-flex items-center justify-center w-6 h-6 rounded text-xs font-bold ${SHIFT_CLASS[item.code] ?? 'bg-gray-600 text-white'}`, item.code);
-      li.append(swatch, el('span', '', item.label));
+      const swatch = el('span', `inline-flex items-center justify-center w-6 h-6 rounded text-xs font-bold ${SHIFT_CLASS[code]}`, code);
+      const label = code === 'O' ? 'Off' : `${SHIFT_NAME[code]} (${SHIFT_HOURS[code]})`;
+      li.append(swatch, el('span', '', label));
       legend.appendChild(li);
     }
+  };
+
+  // The timeline starts at today (Jakarta) and covers the next 30 days. Dates are YYYY-MM-DD, so string order is date order.
+  const SHIFT_WINDOW_DAYS = 30;
+  const addDaysIso = (iso: string, days: number) => {
+    const d = new Date(`${iso}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
   };
 
   const renderShifts = (jadwal: ItocPayload['jadwal']) => {
@@ -379,19 +346,25 @@ import Layout from '../layouts/Layout.astro';
     const body = $('[data-shift-body]');
     head.replaceChildren();
     body.replaceChildren();
-    if (jadwal.dates.length === 0 || jadwal.teams.length === 0) {
-      body.appendChild(emptyRow(1));
+
+    const today = todayIso();
+    const last = addDaysIso(today, SHIFT_WINDOW_DAYS);
+    const columns = jadwal.dates
+      .map((iso, i) => ({ iso, i }))
+      .filter(({ iso }) => iso >= today && iso <= last);
+
+    if (columns.length === 0 || jadwal.teams.length === 0) {
+      body.appendChild(emptyRow(1, 'Tidak ada jadwal untuk hari ini dan 30 hari ke depan'));
       return;
     }
-    const today = todayIso();
 
     const headRow = el('tr');
-    const corner = el('th', 'sticky left-0 z-10 bg-white dark:bg-gray-800 px-3 py-2 text-left font-semibold text-gray-900 dark:text-gray-200', 'Team');
+    const corner = el('th', 'sticky left-0 top-0 z-20 bg-white dark:bg-gray-800 px-3 py-2 text-left font-semibold text-gray-900 dark:text-gray-200', 'Team');
     corner.scope = 'col';
     headRow.appendChild(corner);
-    for (const iso of jadwal.dates) {
+    for (const { iso } of columns) {
       const d = parseIsoDate(iso);
-      const th = el('th', `px-2 py-1 font-semibold whitespace-nowrap ${iso === today ? 'text-blue-700 dark:text-blue-300' : 'text-gray-900 dark:text-gray-200'}`);
+      const th = el('th', `sticky top-0 z-10 bg-white dark:bg-gray-800 px-2 py-1 font-semibold whitespace-nowrap ${iso === today ? 'text-blue-700 dark:text-blue-300' : 'text-gray-900 dark:text-gray-200'}`);
       th.scope = 'col';
       th.title = longDate.format(d);
       th.textContent = shortDay.format(d);
@@ -405,14 +378,15 @@ import Layout from '../layouts/Layout.astro';
       const name = el('th', 'sticky left-0 z-10 bg-white dark:bg-gray-800 px-3 py-2 text-left font-semibold text-gray-900 dark:text-white whitespace-nowrap', team.team);
       name.scope = 'row';
       tr.appendChild(name);
-      team.codes.forEach((code, i) => {
+      for (const { iso, i } of columns) {
+        const code = team.codes[i] ?? '';
         const td = el('td', 'p-0.5');
         const span = pill(code);
         span.classList.add('w-7', 'h-7');
-        span.title = `${team.team}, ${longDate.format(parseIsoDate(jadwal.dates[i]))}: ${code || '-'}`;
+        span.title = `${team.team}, ${longDate.format(parseIsoDate(iso))}: ${code || '-'}`;
         td.appendChild(span);
         tr.appendChild(td);
-      });
+      }
       body.appendChild(tr);
     }
   };
@@ -433,12 +407,14 @@ import Layout from '../layouts/Layout.astro';
       tickClock();
       // Clock ticks every second; the duty card re-checks the shift every minute
       window.setInterval(tickClock, 1000);
-      // Re-check the clock every minute so the hero card follows the shift change
-      window.setInterval(() => renderDuty(payload), 60_000);
+      // Re-check the clock every minute so the hero card and the timeline's start day follow the date
+      window.setInterval(() => {
+        renderDuty(payload);
+        renderShifts(payload.jadwal);
+      }, 60_000);
       renderRoster(payload);
-      renderWeek(payload);
       renderLocations(payload.summary.lokasi);
-      renderLegend(payload.jadwal);
+      renderLegend();
       renderShifts(payload.jadwal);
       showState('content');
     } catch {
@@ -446,6 +422,23 @@ import Layout from '../layouts/Layout.astro';
       showState('error');
     }
   };
+
+  // Mobile accordion for the roster and location panels. Desktop ignores these classes (md:block wins).
+  root.querySelectorAll<HTMLButtonElement>('.accordion-toggle').forEach(btn => {
+    const panel = document.getElementById(btn.getAttribute('aria-controls') ?? '');
+    const label = btn.querySelector('[data-accordion-label]');
+    const chevron = btn.querySelector('svg');
+    const name = btn.dataset.accordionName ?? '';
+    if (!panel || !label || !chevron) return;
+
+    btn.addEventListener('click', () => {
+      const open = btn.getAttribute('aria-expanded') !== 'true';
+      btn.setAttribute('aria-expanded', String(open));
+      panel.classList.toggle('hidden', !open);
+      chevron.classList.toggle('rotate-180', open);
+      label.textContent = `${open ? 'Sembunyikan' : 'Tampilkan'} ${name}`;
+    });
+  });
 
   load();
 </script>

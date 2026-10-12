@@ -1,0 +1,42 @@
+---
+import { formatDutyText, resolveDuty, type DutyJadwal } from '../lib/shift';
+
+interface Props {
+  schedule: DutyJadwal | null;
+}
+
+const { schedule } = Astro.props;
+// Rendered on the server for the first paint; the script below re-checks the shift every minute
+const initialText = schedule ? formatDutyText(resolveDuty(schedule)) : '';
+---
+
+{schedule && (
+  <span
+    data-duty-badge
+    data-schedule={JSON.stringify(schedule)}
+    class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-blue-500/30 bg-blue-50 dark:bg-blue-900/50 px-2.5 py-1 text-xs font-medium text-blue-800 dark:text-blue-100"
+    title="Tim yang sedang bertugas (WIB)"
+  >
+    <span class="relative flex h-2 w-2" aria-hidden="true">
+      <span class="motion-safe:animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+      <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+    </span>
+    <span data-duty-text aria-live="polite">{initialText}</span>
+  </span>
+)}
+
+<script>
+  import { formatDutyText, resolveDuty, type DutyJadwal } from '../lib/shift';
+
+  const REFRESH_MS = 60_000;
+
+  const badge = document.querySelector<HTMLElement>('[data-duty-badge]');
+  const text = badge?.querySelector<HTMLElement>('[data-duty-text]');
+  if (badge && text && badge.dataset.schedule) {
+    const schedule = JSON.parse(badge.dataset.schedule) as DutyJadwal;
+    const refresh = () => {
+      text.textContent = formatDutyText(resolveDuty(schedule));
+    };
+    window.setInterval(refresh, REFRESH_MS);
+  }
+</script>
