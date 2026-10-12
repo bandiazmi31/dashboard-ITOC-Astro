@@ -38,26 +38,7 @@ const { class: className = '' } = Astro.props;
 </button>
 
 <script>
-  // Initialize theme immediately and on DOM ready
-  function initTheme() {
-    const htmlElement = document.documentElement;
-    const savedTheme = localStorage.getItem('theme');
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-    if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
-      htmlElement.classList.add('dark');
-    } else {
-      htmlElement.classList.remove('dark');
-    }
-  }
-
-  // Run immediately
-  initTheme();
-
-  // Also run on DOMContentLoaded to be safe
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initTheme);
-  }
+  // The theme is applied before paint by the inline script in Layout.astro <head>; this only handles the toggle
 
   // Setup toggle button
   function setupToggle() {
@@ -69,12 +50,20 @@ const { class: className = '' } = Astro.props;
     themeToggle.addEventListener('click', (e) => {
       e.preventDefault();
       
-      if (htmlElement.classList.contains('dark')) {
-        htmlElement.classList.remove('dark');
-        localStorage.setItem('theme', 'light');
+      const dark = !htmlElement.classList.contains('dark');
+
+      const applyTheme = () => {
+        htmlElement.classList.toggle('dark', dark);
+        htmlElement.style.colorScheme = dark ? 'dark' : 'light';
+        localStorage.setItem('theme', dark ? 'dark' : 'light');
+      };
+
+      // Cross-fade when supported; browsers without View Transitions switch instantly
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if ('startViewTransition' in document && !reducedMotion) {
+        document.startViewTransition(applyTheme);
       } else {
-        htmlElement.classList.add('dark');
-        localStorage.setItem('theme', 'dark');
+        applyTheme();
       }
     });
   }

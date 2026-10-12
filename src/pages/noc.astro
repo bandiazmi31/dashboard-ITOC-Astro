@@ -3,6 +3,7 @@ import Layout from '../layouts/Layout.astro';
 import KPICardISP from '../components/KPICardISP.astro';
 import Chart from '../components/Chart.astro';
 import TopNTable from '../components/TopNTable.astro';
+import SensorHoneycomb from '../components/SensorHoneycomb.astro';
 import DateFilter from '../components/DateFilter.astro';
 import DataError from '../components/DataError.astro';
 import { jakartaDate, jakartaDaysAgo } from '../lib/dates';
@@ -121,14 +122,15 @@ const topDowntime = noc
             limit={20}
           />
 
-          <div class="overflow-x-auto">
-            <TopNTable
-              title="Seluruh Sensor"
-              columns={['Tanggal', 'Sensor', 'Lokasi', 'Ketersediaan %', 'Trafik (Mbps)']}
-              data={noc.devices.map(d => ({ date: d.date, sensor: d.sensor, location: d.device, availability: d.availability === null ? 'N/A' : `${d.availability}%`, traffic: d.traffic }))}
-              limit={50}
-            />
-          </div>
+          <SensorHoneycomb
+            title="Status Kesehatan Sensor"
+            sensors={noc.devices.map(d => ({
+              sensorName: d.sensor,
+              location: d.device,
+              availability: d.availability,
+              date: d.date,
+            }))}
+          />
         </div>
       </>
     )}

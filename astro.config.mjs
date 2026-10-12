@@ -5,5 +5,10 @@ import vercel from '@astrojs/vercel';
 // Tailwind is applied via postcss.config.mjs + src/styles/global.css
 export default defineConfig({
   output: 'server',
-  adapter: vercel()
+  adapter: vercel(),
+  vite: {
+    server: {
+      allowedHosts: true
+    }
+  }
 });

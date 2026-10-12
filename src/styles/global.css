@@ -1,3 +1,13 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * Theme toggle fade: ThemeToggle runs the switch inside document.startViewTransition, so the browser
+ * cross-fades one snapshot of the page. No per-element transitions, which is what made it stutter.
+ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 180ms;
+  animation-timing-function: ease-out;
+}

@@ -1,9 +1,15 @@
 ---
 // import type { AstroComponentFactory } from 'astro';
 import ThemeToggle from '../components/ThemeToggle.astro';
+import { createSupabaseServerClient } from '../lib/supabase';
+import { getDisplayName } from '../lib/user';
 import '../styles/global.css';
 
 const currentPath = Astro.url.pathname;
+
+const supabase = createSupabaseServerClient(Astro.cookies);
+const { data: { user } } = await supabase.auth.getUser();
+const displayName = getDisplayName(user);
 ---
 
 <html lang="id" class="h-full scroll-smooth">
@@ -11,15 +17,24 @@ const currentPath = Astro.url.pathname;
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ITOC Dashboard</title>
+    <!-- Apply the saved theme before the first paint, so a page load in dark mode does not flash light -->
+    <script is:inline>
+      try {
+        var saved = localStorage.getItem('theme');
+        var dark = saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.classList.toggle('dark', dark);
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      } catch (e) {}
+    </script>
   </head>
-  <body class="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white transition-colors">
+  <body class="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white">
     <!-- Header -->
     <header class="bg-white dark:bg-gray-800 shadow-md p-3 sm:p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-gray-200 dark:border-gray-700">
       <div class="flex items-center space-x-2">
         <span class="text-lg sm:text-xl font-semibold text-primary">Dashboard ITOC</span>
       </div>
       <div class="flex items-center space-x-2 sm:space-x-4 text-xs sm:text-sm">
-        <span class="truncate">User Name</span>
+        {displayName && <span class="truncate" title={user?.email ?? undefined}>{displayName}</span>}
         <ThemeToggle />
         <a href="/logout" class="text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap">Keluar</a>
       </div>
