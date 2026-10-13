@@ -52,11 +52,12 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     try {
       form = await request.formData();
     } catch {
-      return badRequest('Permintaan harus berupa form-data dengan field "file" dan "import_date".');
+      return badRequest('Permintaan harus berupa form-data dengan field "file", "period_from", dan "period_to".');
     }
 
     const file = form.get('file');
-    const pickedDate = String(form.get('import_date') ?? '').trim();
+    const periodFrom = String(form.get('period_from') ?? '').trim();
+    const periodTo = String(form.get('period_to') ?? '').trim();
 
     if (!(file instanceof File)) {
       return badRequest('File tidak ditemukan. Pilih file Excel (.xlsx).');
@@ -70,8 +71,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     if (file.size > MAX_FILE_BYTES) {
       return badRequest('File terlalu besar (maksimal 10 MB).', 413);
     }
-    if (!isValidDate(pickedDate)) {
-      return badRequest('Tanggal import tidak valid (format YYYY-MM-DD).');
+    if (!isValidDate(periodFrom) || !isValidDate(periodTo) || periodFrom > periodTo) {
+      return badRequest('Periode tidak valid: isi tanggal awal dan akhir (YYYY-MM-DD), awal tidak boleh setelah akhir.');
     }
 
     let rawRows: Record<string, unknown>[];
@@ -98,23 +99,35 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
     // File and Jumlah file are intentionally ignored
     const rows: Record<string, string | null>[] = [];
+    const datedTypes = new Set<string>();
+    const datedDates = new Set<string>();
+    const undatedTypes = new Set<string>();
     for (let i = 0; i < rawRows.length; i++) {
       const source = rawRows[i];
       const laporanType = toText(source['Laporan']);
       if (laporanType === null) continue; // blank spreadsheet rows
 
-      // Excel row number = data index + 2 (header is row 1)
-      let importDate = pickedDate;
+      // Dated types cover one day (their K01 date); every other type covers the picked period
+      let rowFrom = periodFrom;
+      let rowTo = periodTo;
       if (DATED_REPORT_TYPES.has(laporanType)) {
+        // Excel row number = data index + 2 (header is row 1)
         const parsed = parseReportDate(String(source['K01'] ?? ''));
         if (parsed === null) {
           return badRequest(`Baris ${i + 2}: tanggal di kolom K01 tidak dapat dibaca.`);
         }
-        importDate = parsed;
+        rowFrom = parsed;
+        rowTo = parsed;
+        datedTypes.add(laporanType);
+        datedDates.add(parsed);
+      } else {
+        undatedTypes.add(laporanType);
       }
 
       const row: Record<string, string | null> = {
-        import_date: importDate,
+        import_date: rowFrom,
+        period_from: rowFrom,
+        period_to: rowTo,
         laporan_type: laporanType,
       };
       for (const k of K_COLUMNS) {
@@ -127,15 +140,27 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       return badRequest('Tidak ada baris dengan kolom Laporan yang terisi.');
     }
 
-    // Idempotency across every date in the file: remove those dates, then insert the new batch.
-    // Note: the delete and insert are separate requests, so a failed insert leaves these dates empty until re-uploaded.
-    const importDates = [...new Set(rows.map(r => r.import_date as string))];
-
-    const { error: deleteError } = await supabase
-      .from('soc_reports')
-      .delete()
-      .in('import_date', importDates);
-    if (deleteError) throw deleteError;
+    // Replace only what this file covers, so other report types and periods are left alone:
+    // - dated types: their rows on the dates in the file
+    // - undated types: their rows whose period overlaps the picked period
+    // Note: the delete and insert are separate requests, so a failed insert leaves this data empty until re-uploaded.
+    if (datedTypes.size > 0) {
+      const { error: deleteError } = await supabase
+        .from('soc_reports')
+        .delete()
+        .in('laporan_type', [...datedTypes])
+        .in('import_date', [...datedDates]);
+      if (deleteError) throw deleteError;
+    }
+    if (undatedTypes.size > 0) {
+      const { error: deleteError } = await supabase
+        .from('soc_reports')
+        .delete()
+        .in('laporan_type', [...undatedTypes])
+        .lte('period_from', periodTo)
+        .gte('period_to', periodFrom);
+      if (deleteError) throw deleteError;
+    }
 
     // Insert in chunks: a full export is ~17k rows, too large for one request
     for (let i = 0; i < rows.length; i += INSERT_CHUNK_SIZE) {
@@ -145,7 +170,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       if (insertError) throw insertError;
     }
 
-    return jsonResponse({ saved: rows.length, import_dates: importDates.sort() });
+    return jsonResponse({
+      saved: rows.length,
+      period: { from: periodFrom, to: periodTo },
+      import_dates: [...datedDates].sort(),
+    });
   } catch (error) {
     return serverError('SOC UPLOAD', error);
   }
