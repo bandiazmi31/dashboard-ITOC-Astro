@@ -2,13 +2,13 @@ import type { APIRoute } from 'astro';
 import * as XLSX from 'xlsx';
 import { createSupabaseServerClient } from '../../../lib/supabase';
 import { jsonResponse, serverError } from '../../../lib/http';
+import { isValidDate } from '../../../lib/dates';
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_ROWS = 50000;
 const INSERT_CHUNK_SIZE = 1000;
 const K_COLUMNS = Array.from({ length: 15 }, (_, i) => `K${String(i + 1).padStart(2, '0')}`);
 const REQUIRED_HEADERS = ['Laporan', ...K_COLUMNS];
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 // Report types whose K01 holds the row's own date, e.g. "Wed, Oct 7, 2026".
 // Every other type takes the date picked in the upload widget.
@@ -19,13 +19,6 @@ const MONTHS: Record<string, number> = {
 };
 
 const badRequest = (error: string, status = 400) => jsonResponse({ error }, status);
-
-/** True only for a real calendar date in YYYY-MM-DD form */
-function isValidDate(value: string): boolean {
-  if (!DATE_PATTERN.test(value)) return false;
-  const parsed = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(value);
-}
 
 /** "Wed, Oct 7, 2026" -> "2026-10-07", or null when the text is not in that form */
 function parseReportDate(text: string): string | null {

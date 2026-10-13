@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import * as XLSX from 'xlsx';
 import { createSupabaseServerClient } from '../../../lib/supabase';
 import { jsonResponse, serverError } from '../../../lib/http';
-import { jakartaDate } from '../../../lib/dates';
+import { isValidDate, jakartaDate } from '../../../lib/dates';
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_ROWS = 5000;
@@ -51,12 +51,16 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       return badRequest('Unauthorized: Harap login terlebih dahulu.', 401);
     }
 
-    let file: FormDataEntryValue | null;
+    let form: FormData;
     try {
-      file = (await request.formData()).get('file');
+      form = await request.formData();
     } catch {
-      return badRequest('Permintaan harus berupa form-data dengan field "file".');
+      return badRequest('Permintaan harus berupa form-data dengan field "file" dan "import_date".');
     }
+
+    const file = form.get('file');
+    // Older clients send no date: fall back to today (Jakarta) so their uploads keep working
+    const importDate = String(form.get('import_date') ?? '').trim() || jakartaDate();
 
     if (!(file instanceof File)) {
       return badRequest('File tidak ditemukan. Pilih file Excel (.xlsx).');
@@ -69,6 +73,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     }
     if (file.size > MAX_FILE_BYTES) {
       return badRequest('File terlalu besar (maksimal 10 MB).', 413);
+    }
+    if (!isValidDate(importDate)) {
+      return badRequest('Tanggal import tidak valid (format YYYY-MM-DD).');
     }
 
     let sheet: XLSX.WorkSheet | undefined;
@@ -95,7 +102,6 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     }
 
     // Excel row number = data index + 2 (header is row 1)
-    const today = jakartaDate();
     const bySensor = new Map<number, Record<string, unknown>>();
 
     for (let i = 0; i < rawRows.length; i++) {
@@ -105,7 +111,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         return badRequest(`Baris ${i + 2}: Sensor ID tidak valid.`);
       }
 
-      const row: Record<string, unknown> = { sensor_id: sensorId, import_date: today };
+      const row: Record<string, unknown> = { sensor_id: sensorId, import_date: importDate };
       for (const [header, column] of Object.entries(COLUMN_MAP)) {
         if (column === 'sensor_id') continue;
         row[column] = TEXT_COLUMNS.has(column)
@@ -127,7 +133,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
     if (dbError) throw dbError;
 
-    return jsonResponse({ saved: rows.length, import_date: today });
+    return jsonResponse({ saved: rows.length, import_date: importDate });
   } catch (error) {
     return serverError('PRTG UPLOAD', error);
   }
