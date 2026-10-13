@@ -3,10 +3,11 @@ import { readFile } from 'node:fs/promises';
 import { createSupabaseServerClient } from '../../lib/supabase';
 import { jsonResponse, serverError } from '../../lib/http';
 import { parseItocWorkbook } from '../../lib/itoc-summary';
+import { resolveItocSummaryPath } from '../../lib/itoc-schedule';
 
 /**
  * GET /api/itoc-summary
- * Returns the "Summary" and "Shift ITOC" sheets from the local workbook named by ITOC_SUMMARY_XLSX_PATH.
+ * Returns the "Summary" and "Shift ITOC" sheets from the local workbook (public/ by default, or ITOC_SUMMARY_XLSX_PATH).
  * The file is read on each request so edits to the workbook show up without a restart.
  */
 export const GET: APIRoute = async ({ cookies }) => {
@@ -17,15 +18,9 @@ export const GET: APIRoute = async ({ cookies }) => {
     return jsonResponse({ error: 'Unauthorized' }, 401);
   }
 
-  // process.env first: a literal path inlined from import.meta.env confuses the Vercel file tracer at build time
-  const filePath = process.env.ITOC_SUMMARY_XLSX_PATH || import.meta.env.ITOC_SUMMARY_XLSX_PATH;
-  if (!filePath) {
-    return jsonResponse({ error: 'Lokasi file belum diatur (ITOC_SUMMARY_XLSX_PATH).' }, 503);
-  }
-
   let buffer: Buffer;
   try {
-    buffer = await readFile(filePath);
+    buffer = await readFile(resolveItocSummaryPath());
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code === 'ENOENT') {

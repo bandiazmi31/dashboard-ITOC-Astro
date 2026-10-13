@@ -36,3 +36,15 @@ export function eachDate(from: string, to: string): string[] {
 export function jakartaDaysAgo(days: number): string {
   return jakartaDate(new Date(Date.now() - days * 24 * 60 * 60 * 1000));
 }
+
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * True only for a real calendar date in YYYY-MM-DD form.
+ * The round-trip check rejects rollover dates such as 2026-02-31, which Date.parse accepts.
+ */
+export function isValidDate(value: string): boolean {
+  if (!DATE_PATTERN.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(value);
+}

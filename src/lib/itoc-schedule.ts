@@ -1,5 +1,18 @@
 import { stat, readFile } from 'node:fs/promises';
+import path from 'node:path';
 import { parseItocWorkbook, type ItocShiftPayload } from './itoc-summary';
+
+/** Used when ITOC_SUMMARY_XLSX_PATH is not set: the workbook kept in public/ */
+const DEFAULT_ITOC_SUMMARY_FILE = 'Summary Data ITOC & EOS.xlsx';
+
+/** Server-only. Env var first (process.env: a literal path inlined from import.meta.env confuses the Vercel file tracer), then public/ */
+export function resolveItocSummaryPath(): string {
+  return (
+    process.env.ITOC_SUMMARY_XLSX_PATH ||
+    import.meta.env.ITOC_SUMMARY_XLSX_PATH ||
+    path.resolve(process.cwd(), 'public', DEFAULT_ITOC_SUMMARY_FILE)
+  );
+}
 
 /**
  * Server-only. Returns the Shift ITOC schedule for the navbar badge.
@@ -10,9 +23,7 @@ let cache: { filePath: string; mtimeMs: number; jadwal: ItocShiftPayload } | nul
 
 /** Null when the path is not configured or the file cannot be read; the badge is then hidden */
 export async function getItocShiftSchedule(): Promise<ItocShiftPayload | null> {
-  // process.env first, same as /api/itoc-summary: a literal path inlined from import.meta.env confuses the Vercel file tracer
-  const filePath = process.env.ITOC_SUMMARY_XLSX_PATH || import.meta.env.ITOC_SUMMARY_XLSX_PATH;
-  if (!filePath) return null;
+  const filePath = resolveItocSummaryPath();
 
   try {
     const { mtimeMs } = await stat(filePath);
