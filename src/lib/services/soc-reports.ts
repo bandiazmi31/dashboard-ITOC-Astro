@@ -24,18 +24,22 @@ export const REPORT_TYPES = {
 export interface SocReportRow extends Record<KKey, string | null> {
   id: string;
   import_date: string;
+  period_from: string;
+  period_to: string;
   laporan_type: string;
 }
 
-/** Rows of the aggregation views (see DATABASE_MIGRATION_SOC_VIEWS.sql), one per date and dimension */
+/** Rows of the aggregation views (see DATABASE_MIGRATION_SOC_VIEWS.sql and DATABASE_MIGRATION_SOC_PERIOD.sql) */
+/** Dated types: one row per date and dimension */
 export interface SeverityAgg { import_date: string; severity: string; total: number }
-export interface ThreatNameAgg { import_date: string; threat_name: string; events: number }
 export interface UrlCategoryAgg { import_date: string; category: string; total: number }
-export interface HostAgg { import_date: string; ip: string; total: number }
-export interface SourceAgg { import_date: string; ip: string; country: string | null; total: number }
-export interface ApplicationAgg { import_date: string; app: string; volume: number }
 export interface ActionAgg { import_date: string; action: string; total: number }
 export interface TrafficAgg { import_date: string; total_bytes: number }
+/** Undated types: one row per upload period and dimension */
+export interface ThreatNameAgg { period_from: string; period_to: string; threat_name: string; events: number }
+export interface HostAgg { period_from: string; period_to: string; ip: string; total: number }
+export interface SourceAgg { period_from: string; period_to: string; ip: string; country: string | null; total: number }
+export interface ApplicationAgg { period_from: string; period_to: string; app: string; volume: number }
 
 export interface SocAggregates {
   severity: SeverityAgg[];
@@ -74,22 +78,26 @@ async function fetchAllPages<T>(
  * Postgres does the grouping; the app only receives one row per date and dimension.
  */
 export async function getSocAggregates(supabase: SupabaseClient, range: DateRange): Promise<SocAggregates> {
+  // Dated views: the day falls inside the range
   const inRange = <T extends string>(view: T) =>
     supabase.from(view).select('*').gte('import_date', range.from).lte('import_date', range.to);
+  // Undated views: the upload period overlaps the range, so a period that starts before the range still counts
+  const overlapping = <T extends string>(view: T) =>
+    supabase.from(view).select('*').lte('period_from', range.to).gte('period_to', range.from);
 
   const [severity, threatNames, urlCategories, internalHosts, topSources, applications, actions, traffic] = await Promise.all([
     fetchAllPages<SeverityAgg>(offset =>
       inRange('soc_severity_daily').order('import_date').order('severity').range(offset, offset + PAGE_SIZE - 1)),
     fetchAllPages<ThreatNameAgg>(offset =>
-      inRange('soc_threat_names_daily').order('import_date').order('threat_name').range(offset, offset + PAGE_SIZE - 1)),
+      overlapping('soc_threat_names_period').order('period_from').order('period_to').order('threat_name').range(offset, offset + PAGE_SIZE - 1)),
     fetchAllPages<UrlCategoryAgg>(offset =>
       inRange('soc_url_categories_daily').order('import_date').order('category').range(offset, offset + PAGE_SIZE - 1)),
     fetchAllPages<HostAgg>(offset =>
-      inRange('soc_internal_hosts_daily').order('import_date').order('ip').range(offset, offset + PAGE_SIZE - 1)),
+      overlapping('soc_internal_hosts_period').order('period_from').order('period_to').order('ip').range(offset, offset + PAGE_SIZE - 1)),
     fetchAllPages<SourceAgg>(offset =>
-      inRange('soc_top_sources_daily').order('import_date').order('ip').range(offset, offset + PAGE_SIZE - 1)),
+      overlapping('soc_top_sources_period').order('period_from').order('period_to').order('ip').range(offset, offset + PAGE_SIZE - 1)),
     fetchAllPages<ApplicationAgg>(offset =>
-      inRange('soc_applications_daily').order('import_date').order('app').range(offset, offset + PAGE_SIZE - 1)),
+      overlapping('soc_applications_period').order('period_from').order('period_to').order('app').range(offset, offset + PAGE_SIZE - 1)),
     fetchAllPages<ActionAgg>(offset =>
       inRange('soc_threat_actions_daily').order('import_date').order('action').range(offset, offset + PAGE_SIZE - 1)),
     fetchAllPages<TrafficAgg>(offset =>
@@ -121,8 +129,8 @@ export async function getSocReportRows(
       .from('soc_reports')
       .select('*')
       .in('laporan_type', [...types])
-      .gte('import_date', range.from)
-      .lte('import_date', range.to)
+      .lte('period_from', range.to)
+      .gte('period_to', range.from)
       .order('id', { ascending: true })
       .range(offset, offset + PAGE_SIZE - 1)
   );

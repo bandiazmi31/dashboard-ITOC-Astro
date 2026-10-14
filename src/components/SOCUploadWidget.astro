@@ -9,11 +9,19 @@ const { defaultDate } = Astro.props;
 <div class="bento-tile p-6">
   <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Unggah Excel Laporan SOC (.xlsx)</h3>
 
-  <div class="flex flex-col sm:flex-row gap-4 sm:items-center">
-    <label class="text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap" for="socImportDate" title="Dipakai untuk baris yang tidak memiliki tanggal di kolom K01">Tanggal (baris tanpa tanggal)</label>
+  <div class="flex flex-col sm:flex-row gap-4 sm:items-center flex-wrap">
+    <span class="text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap" title="Periode untuk baris yang tidak memiliki tanggal di kolom K01">Periode (baris tanpa tanggal)</span>
+    <label class="text-sm text-gray-700 dark:text-gray-300" for="socPeriodFrom">Dari</label>
     <input
       type="date"
-      id="socImportDate"
+      id="socPeriodFrom"
+      value={defaultDate}
+      class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm dark:bg-gray-800 dark:text-white"
+    />
+    <label class="text-sm text-gray-700 dark:text-gray-300" for="socPeriodTo">Sampai</label>
+    <input
+      type="date"
+      id="socPeriodTo"
       value={defaultDate}
       class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm dark:bg-gray-800 dark:text-white"
     />
@@ -50,7 +58,8 @@ const { defaultDate } = Astro.props;
 
 <script>
   const fileInput = document.getElementById('socFile') as HTMLInputElement;
-  const dateInput = document.getElementById('socImportDate') as HTMLInputElement;
+  const periodFromInput = document.getElementById('socPeriodFrom') as HTMLInputElement;
+  const periodToInput = document.getElementById('socPeriodTo') as HTMLInputElement;
   const btn = document.getElementById('socUploadBtn') as HTMLButtonElement;
   const spinner = document.getElementById('socSpinner');
   const toast = document.getElementById('socToast');
@@ -75,8 +84,12 @@ const { defaultDate } = Astro.props;
     btn.addEventListener('click', async () => {
       const file = fileInput.files?.[0];
       if (!file) return;
-      if (!dateInput.value) {
-        showToast('❌ Pilih tanggal data terlebih dahulu.', 'error');
+      if (!periodFromInput.value || !periodToInput.value) {
+        showToast('❌ Pilih periode data (dari dan sampai) terlebih dahulu.', 'error');
+        return;
+      }
+      if (periodFromInput.value > periodToInput.value) {
+        showToast('❌ Tanggal "Dari" tidak boleh setelah tanggal "Sampai".', 'error');
         return;
       }
 
@@ -86,7 +99,8 @@ const { defaultDate } = Astro.props;
       try {
         const form = new FormData();
         form.append('file', file);
-        form.append('import_date', dateInput.value);
+        form.append('period_from', periodFromInput.value);
+        form.append('period_to', periodToInput.value);
 
         const res = await fetch('/api/soc/upload-soc', { method: 'POST', body: form });
         const json = await res.json().catch(() => ({}));
@@ -97,7 +111,7 @@ const { defaultDate } = Astro.props;
           return;
         }
 
-        showToast(`✅ Berhasil menyimpan ${json.saved} baris laporan SOC untuk ${json.import_dates.length} tanggal.`, 'success');
+        showToast(`✅ Berhasil menyimpan ${json.saved} baris laporan SOC untuk periode ${json.period.from} s/d ${json.period.to}.`, 'success');
         fileInput.value = '';
         btn.disabled = true;
         // Reload so the dashboard shows the newly imported date
