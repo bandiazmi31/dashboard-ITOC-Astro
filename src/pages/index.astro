@@ -42,6 +42,9 @@ try {
 
 const soc = socResult;
 const noc = nocResult;
+
+// Indonesian thousands separator, e.g. 12.345
+const formatCount = (n: number) => n.toLocaleString('id-ID');
 ---
 
 <Layout>
@@ -59,14 +62,14 @@ const noc = nocResult;
         <div class="lg:col-span-2">
           <KPICard
             label="Total Kejadian Ancaman"
-            value={soc.kpi.totalThreats}
+            value={formatCount(soc.kpi.totalThreats)}
             status="info"
           />
         </div>
         <div class="lg:col-span-2">
           <KPICard
             label="High/Critical Threats"
-            value={soc.kpi.highCriticalThreats}
+            value={formatCount(soc.kpi.highCriticalThreats)}
             unit={`(${soc.kpi.highCriticalPercentage}%)`}
             status={soc.kpi.highCriticalPercentage > 5 ? 'warning' : 'safe'}
           />
@@ -75,14 +78,14 @@ const noc = nocResult;
           <KPICard
             label="Ancaman Diblokir"
             value={`${soc.kpi.blockedPercentage}%`}
-            unit={`(${soc.kpi.blockedThreats} kejadian)`}
+            unit={`(${formatCount(soc.kpi.blockedThreats)} kejadian)`}
             status="safe"
           />
         </div>
         <div class="lg:col-span-3">
           <KPICard
             label="Host Internal Terimbas"
-            value={soc.kpi.internalHostCount}
+            value={formatCount(soc.kpi.internalHostCount)}
             unit="host"
             status="info"
           />
