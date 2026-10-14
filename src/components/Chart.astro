@@ -22,9 +22,6 @@ const { id, type, title, labels, datasets, valueFormat } = Astro.props;
 <div class="bento-tile p-4">
   <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">{title}</h3>
   <canvas id={id} data-type={type} data-labels={JSON.stringify(labels)} data-datasets={JSON.stringify(datasets)} data-format={valueFormat ?? ''}></canvas>
-  <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
-    <a href="#" class="text-blue-600 dark:text-blue-400 hover:underline">Lihat sebagai tabel</a>
-  </p>
 </div>
 
 <script>

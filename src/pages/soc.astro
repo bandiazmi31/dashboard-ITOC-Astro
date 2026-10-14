@@ -59,6 +59,9 @@ if (aggregatesOutcome.status === 'fulfilled' && genericOutcome.status === 'fulfi
 
 const soc: SocDashboard | null = aggregates ? buildSocDashboard(aggregates, from, to) : null;
 
+// Indonesian thousands separator, e.g. 12.345
+const formatCount = (n: number) => n.toLocaleString('id-ID');
+
 const severity = aggregates ? severityTable(aggregates.severity) : [];
 const threatNames = aggregates ? threatNameTable(aggregates.threatNames) : [];
 const urlCategories = aggregates ? urlCategoryTable(aggregates.urlCategories) : [];
@@ -95,48 +98,48 @@ const hasAnyReports =
     {soc && (
       <>
         <!-- KPI Cards -->
-        <div class="lg:col-span-2">
+        <div class="md:col-span-1 lg:col-span-2">
           <KPICard
             label="Total Kejadian Ancaman"
-            value={soc.kpi.totalThreats}
+            value={formatCount(soc.kpi.totalThreats)}
             status="info"
           />
         </div>
-        <div class="lg:col-span-2">
+        <div class="md:col-span-1 lg:col-span-2">
           <KPICard
             label="High/Critical Threats"
-            value={soc.kpi.highCriticalThreats}
-            unit={`(${soc.kpi.highCriticalPercentage}%)`}
+            value={formatCount(soc.kpi.highCriticalThreats)}
+            unit={`${soc.kpi.highCriticalPercentage}% dari total`}
             status={soc.kpi.highCriticalPercentage > 5 ? 'warning' : 'safe'}
           />
         </div>
-        <div class="lg:col-span-2">
+        <div class="md:col-span-1 lg:col-span-2">
           <KPICard
             label="Ancaman Diblokir"
             value={`${soc.kpi.blockedPercentage}%`}
-            unit={`(${soc.kpi.blockedThreats} kejadian)`}
+            unit={`${formatCount(soc.kpi.blockedThreats)} kejadian`}
             status="safe"
           />
         </div>
-        <div class="lg:col-span-2">
+        <div class="md:col-span-1 lg:col-span-2">
           <KPICard
             label="Host Internal Terimbas"
-            value={soc.kpi.internalHostCount}
+            value={formatCount(soc.kpi.internalHostCount)}
             unit="host"
             status="info"
           />
         </div>
-        <div class="lg:col-span-2">
+        <div class="md:col-span-1 lg:col-span-2">
           <KPICard
             label="Trafik Aplikasi"
             value={soc.kpi.applicationVolume}
             status="info"
           />
         </div>
-        <div class="lg:col-span-2">
+        <div class="md:col-span-1 lg:col-span-2">
           <KPICard
             label="Total Akses URL"
-            value={soc.kpi.urlAccesses}
+            value={formatCount(soc.kpi.urlAccesses)}
             unit="akses"
             status="info"
           />
