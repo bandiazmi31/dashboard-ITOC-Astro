@@ -50,6 +50,17 @@ const topDowntime = noc
       />
     </div>
 
+    <div class="md:col-span-2 lg:col-span-6 flex items-center gap-4">
+      <button
+        id="prtgSyncBtn"
+        type="button"
+        class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+      >
+        Sinkron dari PRTG
+      </button>
+      <span id="prtgSyncStatus" class="text-sm text-gray-600 dark:text-gray-400"></span>
+    </div>
+
     {loadError && <div class="md:col-span-2 lg:col-span-6"><DataError message={loadError} /></div>}
 
     {noc && (
@@ -139,3 +150,31 @@ const topDowntime = noc
     )}
   </div>
 </Layout>
+
+<script>
+  const syncBtn = document.getElementById('prtgSyncBtn') as HTMLButtonElement | null;
+  const syncStatus = document.getElementById('prtgSyncStatus');
+
+  syncBtn?.addEventListener('click', async () => {
+    if (!syncBtn) return;
+    syncBtn.disabled = true;
+    if (syncStatus) syncStatus.textContent = 'Menyinkronkan dari PRTG...';
+
+    try {
+      const res = await fetch('/api/noc/sync-prtg', { method: 'POST' });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Sinkron PRTG gagal');
+
+      if (syncStatus) {
+        const parts = [`${body.delta} sensor dihitung`];
+        if (body.no_baseline) parts.push(`${body.no_baseline} tanpa snapshot sebelumnya`);
+        if (body.counter_reset) parts.push(`${body.counter_reset} counter reset`);
+        syncStatus.textContent = `${parts.join(', ')} untuk ${body.import_date}`;
+      }
+      window.location.reload();
+    } catch (err) {
+      if (syncStatus) syncStatus.textContent = err instanceof Error ? err.message : 'Sinkron PRTG gagal';
+      syncBtn.disabled = false;
+    }
+  });
+</script>
