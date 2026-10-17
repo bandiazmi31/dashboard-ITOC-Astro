@@ -1,0 +1,30 @@
+---
+import type { TrafficKpis } from '../lib/services/traffic';
+
+interface Props {
+  kpis: TrafficKpis;
+}
+
+const { kpis } = Astro.props;
+
+const number = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 1 });
+// A missing value shows as an em dash, not 0, so an empty window is not mistaken for no traffic
+const format = (value: number | null) => (value === null ? '—' : `${number.format(value)} Mbit/s`);
+
+const tiles = [
+  { label: 'Sensor', value: kpis.sensorCount === 0 ? '—' : number.format(kpis.sensorCount) },
+  { label: 'Puncak In (total)', value: format(kpis.peakIn) },
+  { label: 'Puncak Out (total)', value: format(kpis.peakOut) },
+  { label: 'Rata-rata In (total)', value: format(kpis.avgIn) },
+  { label: 'Rata-rata Out (total)', value: format(kpis.avgOut) },
+];
+---
+
+<div class="grid grid-cols-2 lg:grid-cols-5 gap-3 md:col-span-2 lg:col-span-6" role="list" aria-label="Ringkasan trafik PRTG">
+  {tiles.map(tile => (
+    <div class="bento-tile p-3 sm:p-4" role="listitem">
+      <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 font-medium">{tile.label}</p>
+      <p class="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mt-2 break-words">{tile.value}</p>
+    </div>
+  ))}
+</div>

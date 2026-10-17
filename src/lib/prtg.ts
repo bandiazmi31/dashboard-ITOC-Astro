@@ -44,7 +44,8 @@ function config(): { baseUrl: string; username: string; passhash: string } {
   return { baseUrl: host, username, passhash };
 }
 
-async function prtgGet(path: string, params: Record<string, string>): Promise<any> {
+/** GET a PRTG endpoint and return the raw response body. */
+async function prtgGetText(path: string, params: Record<string, string>): Promise<string> {
   const { baseUrl, username, passhash } = config();
   const url = new URL(`${baseUrl}/api/${path}`);
   for (const [key, value] of Object.entries({ ...params, username, passhash })) {
@@ -62,12 +63,26 @@ async function prtgGet(path: string, params: Record<string, string>): Promise<an
   if (response.status < 200 || response.status >= 300) {
     throw new PrtgError(`PRTG ${path} merespons HTTP ${response.status}`);
   }
+  return response.body;
+}
+
+async function prtgGet(path: string, params: Record<string, string>): Promise<any> {
+  const body = await prtgGetText(path, params);
   try {
-    return JSON.parse(response.body);
+    return JSON.parse(body);
   } catch {
     // A login page or proxy error comes back as HTML when the passhash is wrong
     throw new PrtgError(`PRTG ${path} tidak mengembalikan JSON (periksa kredensial)`);
   }
+}
+
+/**
+ * Hourly history for one sensor as CSV (all channels in one response).
+ * Use this for traffic: historicdata.json repeats its keys per channel, so a JSON parser drops channels.
+ * sdate/edate are wall-clock times in PRTG's server time zone, formatted YYYY-MM-DD-HH-MM-SS.
+ */
+export function fetchHourlyTrafficCsv(objid: number, sdate: string, edate: string): Promise<string> {
+  return prtgGetText('historicdata.csv', { id: String(objid), avg: '3600', sdate, edate });
 }
 
 /**

@@ -1,0 +1,125 @@
+---
+import type { TrafficSensorOption, TrafficSeries, TrafficRange } from '../lib/services/traffic';
+
+interface Props {
+  sensors: TrafficSensorOption[];
+  selected: number | null;
+  range: TrafficRange;
+  series: TrafficSeries | null;
+}
+
+const { sensors, selected, range, series } = Astro.props;
+const hasSensors = sensors.length > 0;
+---
+
+<div class="bento-tile p-4 md:col-span-2 lg:col-span-6" data-traffic-detail>
+  <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+    <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex-1">Trafik per Sensor</h3>
+    <label class="text-sm font-medium text-gray-700 dark:text-gray-300" for="trafficSensorSelect">Sensor:</label>
+    <select
+      id="trafficSensorSelect"
+      data-traffic-select
+      data-range={range}
+      disabled={!hasSensors}
+      class="max-w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+    >
+      {hasSensors ? sensors.map(s => (
+        <option value={s.sensor_id} selected={s.sensor_id === selected}>
+          {s.name}{s.device ? ` (${s.device})` : ''}
+        </option>
+      )) : <option>Belum ada sensor</option>}
+    </select>
+  </div>
+
+  {series && series.labels.length > 0 ? (
+    <>
+      <div class="relative h-72">
+        <canvas
+          data-traffic-canvas
+          data-initial={JSON.stringify(series)}
+          role="img"
+          aria-label="Grafik trafik In dan Out sensor terpilih"
+        ></canvas>
+      </div>
+      <p data-traffic-summary class="text-sm text-gray-600 dark:text-gray-400 mt-3"></p>
+    </>
+  ) : (
+    <p class="text-sm text-gray-600 dark:text-gray-400 py-8 text-center">
+      {hasSensors ? 'Tidak ada data trafik untuk sensor ini pada rentang waktu yang dipilih.' : 'Belum ada sensor. Jalankan sinkron PRTG.'}
+    </p>
+  )}
+</div>
+
+<script>
+  import Chart from 'chart.js/auto';
+
+  const fmt = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 1 });
+  const peak = (values) => {
+    const present = values.filter((v) => v !== null);
+    return present.length ? fmt.format(Math.max(...present)) : '—';
+  };
+  const mean = (values) => {
+    const present = values.filter((v) => v !== null);
+    return present.length ? fmt.format(present.reduce((a, b) => a + b, 0) / present.length) : '—';
+  };
+
+  document.querySelectorAll<HTMLSelectElement>('select[data-traffic-select]').forEach((select) => {
+    const root = select.closest<HTMLElement>('[data-traffic-detail]');
+    const canvas = root?.querySelector<HTMLCanvasElement>('canvas[data-traffic-canvas]') ?? null;
+    const summary = root?.querySelector<HTMLElement>('[data-traffic-summary]') ?? null;
+    let chart = null;
+
+    function describe(series) {
+      if (!summary) return;
+      summary.textContent =
+        `Puncak In ${peak(series.in)} Mbit/s, rata-rata In ${mean(series.in)} Mbit/s. ` +
+        `Puncak Out ${peak(series.out)} Mbit/s, rata-rata Out ${mean(series.out)} Mbit/s.`;
+    }
+
+    function draw(series) {
+      if (!canvas) return;
+      const data = {
+        labels: series.labels,
+        datasets: [
+          { label: 'Traffic In (Mbit/s)', data: series.in, borderColor: '#3b82f6', tension: 0.4, fill: false, spanGaps: false, pointRadius: 2 },
+          { label: 'Traffic Out (Mbit/s)', data: series.out, borderColor: '#f59e0b', tension: 0.4, fill: false, spanGaps: false, pointRadius: 2 },
+        ],
+      };
+      if (chart) {
+        chart.data = data;
+        chart.update();
+      } else {
+        chart = new Chart(canvas.getContext('2d'), {
+          type: 'line',
+          data,
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'top' } },
+            scales: { y: { beginAtZero: true } },
+          },
+        });
+      }
+      describe(series);
+    }
+
+    const initial = canvas?.dataset.initial ? JSON.parse(canvas.dataset.initial) : null;
+    if (initial) draw(initial);
+
+    select.addEventListener('change', async () => {
+      const sensorId = select.value;
+      const range = select.dataset.range;
+      const url = new URL(window.location.href);
+      url.searchParams.set('sensor', sensorId);
+      window.history.replaceState(null, '', url);
+
+      try {
+        const res = await fetch(`/api/noc/traffic-series?sensor=${encodeURIComponent(sensorId)}&range=${encodeURIComponent(range)}`);
+        if (!res.ok) throw new Error('gagal');
+        draw(await res.json());
+      } catch {
+        if (summary) summary.textContent = 'Data sensor gagal dimuat. Coba lagi.';
+      }
+    });
+  });
+</script>
