@@ -55,13 +55,11 @@ const nocValues = noc
   : [];
 const nocYMin = nocValues.length > 0 ? Math.max(0, Math.floor(Math.min(...nocValues)) - 1) : undefined;
 
-// One honeycomb cell per sensor, using its most recent day in the range.
-// Key on name and device: two PRTG sensors share the name "JKT - ASTINET" at different devices.
+// One honeycomb cell per sensor, using its most recent day in the range
 const latestPerSensor = new Map<string, NonNullable<typeof noc>['devices'][number]>();
 for (const d of noc?.devices ?? []) {
-  const key = `${d.sensor}|${d.device}`;
-  const prev = latestPerSensor.get(key);
-  if (!prev || d.date > prev.date) latestPerSensor.set(key, d);
+  const prev = latestPerSensor.get(d.sensor);
+  if (!prev || d.date > prev.date) latestPerSensor.set(d.sensor, d);
 }
 const honeycombSensors = [...latestPerSensor.values()].map(d => ({
   sensorName: d.sensor,
