@@ -1,19 +1,13 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import KPICardISP from '../components/KPICardISP.astro';
 import Chart from '../components/Chart.astro';
-import TopNTable from '../components/TopNTable.astro';
-import SensorHoneycomb from '../components/SensorHoneycomb.astro';
-import DateFilter from '../components/DateFilter.astro';
 import DataError from '../components/DataError.astro';
-import { jakartaDate, jakartaDaysAgo } from '../lib/dates';
 import { createSupabaseServerClient } from '../lib/supabase';
-import { getNocTrends, type NocTrendsResult } from '../lib/services/analytics';
+import { getSensorSeries, getTrafficPage, parseRange, TRAFFIC_RANGES, type TrafficPageData, type TrafficSeries } from '../lib/services/traffic';
+import TrafficKpis from '../components/TrafficKpis.astro';
+import TrafficSensorDetail from '../components/TrafficSensorDetail.astro';
 
-// Get query params for date range, or default to last 7 days
 const url = new URL(Astro.request.url);
-const from = url.searchParams.get('from') || jakartaDaysAgo(7);
-const to = url.searchParams.get('to') || jakartaDate();
 
 // Verify authenticated user
 const supabase = createSupabaseServerClient(Astro.cookies);
@@ -23,119 +17,99 @@ if (!user) {
   return Astro.redirect('/login');
 }
 
-let nocResult: NocTrendsResult | null = null;
-let loadError: string | null = null;
+// Traffic PRTG section: hourly In/Out, 24 h or 7 d. Loads on its own, so a failure here leaves the rest of the page up.
+const trafficRange = parseRange(url.searchParams.get('range'));
+let traffic: TrafficPageData | null = null;
+let trafficSeries: TrafficSeries | null = null;
+let trafficSelected: number | null = null;
+let trafficError: string | null = null;
 
 try {
-  nocResult = await getNocTrends(supabase, { from, to });
+  traffic = await getTrafficPage(supabase, trafficRange);
+  const requested = Number(url.searchParams.get('sensor'));
+  const known = traffic.sensors.some(s => s.sensor_id === requested);
+  trafficSelected = known ? requested : (traffic.top[0]?.sensor_id ?? traffic.sensors[0]?.sensor_id ?? null);
+  if (trafficSelected !== null) {
+    trafficSeries = await getSensorSeries(supabase, trafficSelected, trafficRange);
+  }
 } catch (err) {
-  console.error('[NOC] Failed to fetch from Supabase:', err instanceof Error ? err.message : err);
-  loadError = 'Gagal memuat data';
+  console.error('[NOC] Failed to load traffic:', err instanceof Error ? err.message : err);
+  trafficError = 'Gagal memuat data trafik PRTG';
 }
 
-const noc = nocResult;
-
-// Top 20 sensors by downtime (seconds), taken from the live PRTG rows
-const topDowntime = noc
-  ? [...noc.devices].sort((a, b) => b.downtime - a.downtime).slice(0, 20)
-  : [];
+const syncTime = traffic?.sync.finishedAt
+  ? new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(traffic.sync.finishedAt))
+  : null;
+const trafficRangeLabel: Record<string, string> = { '24h': '24 jam', '7d': '7 hari' };
 ---
 
 <Layout>
   <div class="bento">
-    <div class="md:col-span-2 lg:col-span-6">
-      <DateFilter
-        from={from}
-        to={to}
-      />
-    </div>
+    <!-- Traffic PRTG: hourly In and Out per sensor -->
+    <section class="md:col-span-2 lg:col-span-6 space-y-4" aria-labelledby="trafficHeading">
+      <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div class="flex-1">
+          <h2 id="trafficHeading" class="text-xl font-semibold text-gray-900 dark:text-white">Trafik PRTG</h2>
+          {traffic && (
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              Rata-rata per jam, {trafficRangeLabel[trafficRange]} terakhir (WIB)
+              {syncTime && <> · Sinkron terakhir: {syncTime}</>}
+              {traffic.sync.status === 'partial' && <span class="text-amber-700 dark:text-amber-300"> · Sinkron sebagian ({traffic.sync.errorCount} masalah)</span>}
+              {traffic.sync.status === 'failed' && <span class="text-red-700 dark:text-red-300"> · Sinkron terakhir gagal</span>}
+              {!syncTime && <> · Belum pernah disinkron</>}
+            </p>
+          )}
+        </div>
+        <nav aria-label="Rentang waktu trafik" class="flex gap-2">
+          {TRAFFIC_RANGES.map(r => (
+            <a
+              href={`?range=${r}${trafficSelected !== null ? `&sensor=${trafficSelected}` : ''}`}
+              aria-current={r === trafficRange ? 'page' : undefined}
+              class={`px-3 py-1.5 rounded-md text-sm font-medium border ${r === trafficRange ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+            >
+              {trafficRangeLabel[r]}
+            </a>
+          ))}
+        </nav>
+      </div>
 
-    {loadError && <div class="md:col-span-2 lg:col-span-6"><DataError message={loadError} /></div>}
+      {trafficError && <DataError message={trafficError} />}
 
-    {noc && (
-      <>
-        <!-- NOC KPI Cards - ISP Availability -->
-        {noc.kpi.ispAvailability.map(isp => (
-          <div class="lg:col-span-2">
-            <KPICardISP
-              ispName={isp.name}
-              actual={isp.actual}
-              sla={isp.sla}
-              status={isp.status}
+      {traffic && (
+        <>
+          <TrafficKpis kpis={traffic.kpis} />
+
+          <div class="md:col-span-2 lg:col-span-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Chart
+              id="trafficTotalChart"
+              type="line"
+              title="Total Trafik In dan Out (Mbit/s)"
+              labels={traffic.total.labels}
+              datasets={[
+                { label: 'Traffic In', data: traffic.total.in, borderColor: '#3b82f6', tension: 0.4, fill: false },
+                { label: 'Traffic Out', data: traffic.total.out, borderColor: '#f59e0b', tension: 0.4, fill: false },
+              ]}
+            />
+            <Chart
+              id="trafficTopChart"
+              type="bar"
+              title="10 Sensor Teratas (rata-rata Mbit/s)"
+              labels={traffic.top.map(t => t.name)}
+              datasets={[
+                { label: 'Rata-rata In', data: traffic.top.map(t => t.avgIn), backgroundColor: '#3b82f6' },
+                { label: 'Rata-rata Out', data: traffic.top.map(t => t.avgOut), backgroundColor: '#f59e0b' },
+              ]}
             />
           </div>
-        ))}
 
-        <!-- Trend Charts (2 columns) -->
-        <div class="md:col-span-2 lg:col-span-3">
-          <Chart
-            id="nocIspTrendChart"
-            type="line"
-            title="Ketersediaan ISP per Hari"
-            labels={noc.dates}
-            datasets={[
-              {
-                label: 'Astinet',
-                data: noc.astinet,
-                borderColor: '#3b82f6',
-                tension: 0.4,
-                fill: false
-              },
-              {
-                label: 'JLM',
-                data: noc.jlm,
-                borderColor: '#f59e0b',
-                tension: 0.4,
-                fill: false
-              },
-              {
-                label: 'Lintasarta',
-                data: noc.lintasarta,
-                borderColor: '#10b981',
-                tension: 0.4,
-                fill: false
-              }
-            ]}
+          <TrafficSensorDetail
+            sensors={traffic.sensors}
+            selected={trafficSelected}
+            range={trafficRange}
+            series={trafficSeries}
           />
-        </div>
-        <div class="md:col-span-2 lg:col-span-3">
-          <Chart
-            id="nocTrafficTrendChart"
-            type="line"
-            title="Trafik Rata-rata per Hari"
-            labels={noc.dates}
-            datasets={[
-              {
-                label: 'Trafik (Mbps)',
-                data: noc.traffic_mbps,
-                borderColor: '#8b5cf6',
-                tension: 0.4,
-                fill: false
-              }
-            ]}
-          />
-        </div>
-
-        <!-- Analytics Tables (Full-width Stacked) -->
-        <div class="md:col-span-2 lg:col-span-6 space-y-4">
-          <TopNTable
-            title="Sensor dengan Downtime (20 Terbesar)"
-            columns={['Tanggal', 'Sensor', 'Lokasi', 'Downtime']}
-            data={topDowntime.map(d => ({ date: d.date, sensor: d.sensor, location: d.device, downtime: `${d.downtime}s` }))}
-            limit={20}
-          />
-
-          <SensorHoneycomb
-            title="Status Kesehatan Sensor"
-            sensors={noc.devices.map(d => ({
-              sensorName: d.sensor,
-              location: d.device,
-              availability: d.availability,
-              date: d.date,
-            }))}
-          />
-        </div>
-      </>
-    )}
+        </>
+      )}
+    </section>
   </div>
 </Layout>

@@ -32,6 +32,11 @@ export function eachDate(from: string, to: string): string[] {
   return dates;
 }
 
+/** The calendar date `days` days after `date` (negative goes back), as YYYY-MM-DD. Pure date arithmetic. */
+export function addDays(date: string, days: number): string {
+  return new Date(Date.parse(`${date}T00:00:00Z`) + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
 /** The Jakarta calendar date `days` days before now, as YYYY-MM-DD */
 export function jakartaDaysAgo(days: number): string {
   return jakartaDate(new Date(Date.now() - days * 24 * 60 * 60 * 1000));
