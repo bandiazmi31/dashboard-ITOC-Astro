@@ -5,7 +5,7 @@ import DataError from '../components/DataError.astro';
 import DateFilter from '../components/DateFilter.astro';
 import { createSupabaseServerClient } from '../lib/supabase';
 import { getSensorSeries, getTrafficPage, resolveTrafficSelection, TRAFFIC_RANGES, TRAFFIC_RETENTION_DAYS, type TrafficPageData, type TrafficSeries } from '../lib/services/traffic';
-import { getIspAvailability, type IspAvailabilityDaily } from '../lib/services/prtg-availability';
+import { getNocTrends, type NocTrendsResult } from '../lib/services/analytics';
 import TrafficKpis from '../components/TrafficKpis.astro';
 import TrafficSensorDetail from '../components/TrafficSensorDetail.astro';
 
@@ -41,15 +41,15 @@ try {
   trafficError = 'Gagal memuat data trafik PRTG';
 }
 
-// Daily ISP availability read live from PRTG for the same dates. Separate from traffic so one failure does not hide the other.
-let availability: IspAvailabilityDaily | null = null;
+// Daily ISP availability for the same dates. Separate from traffic so one failure does not hide the other.
+let availability: NocTrendsResult | null = null;
 let availabilityError: string | null = null;
 
 try {
-  availability = await getIspAvailability(selection.dates.from, selection.dates.to);
+  availability = await getNocTrends(supabase, selection.dates);
 } catch (err) {
   console.error('[NOC] Failed to load availability:', err instanceof Error ? err.message : err);
-  availabilityError = 'Gagal memuat ketersediaan dari PRTG';
+  availabilityError = 'Gagal memuat data ketersediaan ISP';
 }
 
 // Axis starts just below the lowest value, so the 99 % range is readable and an outage still shows
@@ -147,10 +147,7 @@ const presetLabel: Record<string, string> = { '24h': '24 jam', '7d': '7 hari' };
     <section class="md:col-span-2 lg:col-span-6 space-y-4 mt-4" aria-labelledby="availabilityHeading">
       <div>
         <h2 id="availabilityHeading" class="text-xl font-semibold text-gray-900 dark:text-white">Ketersediaan ISP</h2>
-        <p class="text-sm text-gray-600 dark:text-gray-400">
-          Per hari dari PRTG, {selection.dates.from} s/d {selection.dates.to}
-          {availability && availability.sensorsFailed > 0 && <span class="text-amber-700 dark:text-amber-300"> · {availability.sensorsFailed} sensor gagal dibaca</span>}
-        </p>
+        <p class="text-sm text-gray-600 dark:text-gray-400">Per hari, {selection.dates.from} s/d {selection.dates.to}</p>
       </div>
 
       {availabilityError && <DataError message={availabilityError} />}
