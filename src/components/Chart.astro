@@ -14,16 +14,14 @@ interface Props {
   }>;
   /** 'bytes' shows axis ticks and tooltips as KB/MB/GB/TB */
   valueFormat?: 'bytes';
-  /** Lowest value on the y axis. Omit to start at zero. */
-  yMin?: number;
 }
 
-const { id, type, title, labels, datasets, valueFormat, yMin } = Astro.props;
+const { id, type, title, labels, datasets, valueFormat } = Astro.props;
 ---
 
 <div class="bento-tile p-4">
   <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">{title}</h3>
-  <canvas id={id} data-type={type} data-labels={JSON.stringify(labels)} data-datasets={JSON.stringify(datasets)} data-format={valueFormat ?? ''} data-ymin={yMin ?? ''}></canvas>
+  <canvas id={id} data-type={type} data-labels={JSON.stringify(labels)} data-datasets={JSON.stringify(datasets)} data-format={valueFormat ?? ''}></canvas>
 </div>
 
 <script>
@@ -41,11 +39,9 @@ const { id, type, title, labels, datasets, valueFormat, yMin } = Astro.props;
 
     // Byte values are shown as KB/MB/GB/TB on the axis and in tooltips
     const bytesAxis = valueFormat === 'bytes';
-    const yMinAttr = canvas.getAttribute('data-ymin');
-    const yBase = bytesAxis
+    const yScale = bytesAxis
       ? { beginAtZero: true, ticks: { callback: (value: string | number) => formatBytes(Number(value)) } }
       : { beginAtZero: true };
-    const yScale = yMinAttr ? { ...yBase, beginAtZero: false, min: Number(yMinAttr) } : yBase;
     const tooltip = bytesAxis
       ? { callbacks: { label: (item: any) => `${item.dataset.label}: ${formatBytes(Number(item.parsed.y))}` } }
       : {};

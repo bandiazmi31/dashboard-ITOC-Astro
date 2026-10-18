@@ -2,10 +2,8 @@
 import Layout from '../layouts/Layout.astro';
 import Chart from '../components/Chart.astro';
 import DataError from '../components/DataError.astro';
-import DateFilter from '../components/DateFilter.astro';
 import { createSupabaseServerClient } from '../lib/supabase';
-import { getSensorSeries, getTrafficPage, resolveTrafficSelection, TRAFFIC_RANGES, TRAFFIC_RETENTION_DAYS, type TrafficPageData, type TrafficSeries } from '../lib/services/traffic';
-import { getNocTrends, type NocTrendsResult } from '../lib/services/analytics';
+import { getSensorSeries, getTrafficPage, parseRange, TRAFFIC_RANGES, type TrafficPageData, type TrafficSeries } from '../lib/services/traffic';
 import TrafficKpis from '../components/TrafficKpis.astro';
 import TrafficSensorDetail from '../components/TrafficSensorDetail.astro';
 
@@ -19,57 +17,34 @@ if (!user) {
   return Astro.redirect('/login');
 }
 
-// Period from the date filter (from/to) or the 24 jam / 7 hari presets
-const selection = resolveTrafficSelection(url.searchParams);
-
-// Traffic PRTG section. Loads on its own, so a failure here leaves the rest of the page up.
+// Traffic PRTG section: hourly In/Out, 24 h or 7 d. Loads on its own, so a failure here leaves the rest of the page up.
+const trafficRange = parseRange(url.searchParams.get('range'));
 let traffic: TrafficPageData | null = null;
 let trafficSeries: TrafficSeries | null = null;
 let trafficSelected: number | null = null;
 let trafficError: string | null = null;
 
 try {
-  traffic = await getTrafficPage(supabase, selection.window);
+  traffic = await getTrafficPage(supabase, trafficRange);
   const requested = Number(url.searchParams.get('sensor'));
   const known = traffic.sensors.some(s => s.sensor_id === requested);
   trafficSelected = known ? requested : (traffic.top[0]?.sensor_id ?? traffic.sensors[0]?.sensor_id ?? null);
   if (trafficSelected !== null) {
-    trafficSeries = await getSensorSeries(supabase, trafficSelected, selection.window);
+    trafficSeries = await getSensorSeries(supabase, trafficSelected, trafficRange);
   }
 } catch (err) {
   console.error('[NOC] Failed to load traffic:', err instanceof Error ? err.message : err);
   trafficError = 'Gagal memuat data trafik PRTG';
 }
 
-// Daily ISP availability for the same dates. Separate from traffic so one failure does not hide the other.
-let availability: NocTrendsResult | null = null;
-let availabilityError: string | null = null;
-
-try {
-  availability = await getNocTrends(supabase, selection.dates);
-} catch (err) {
-  console.error('[NOC] Failed to load availability:', err instanceof Error ? err.message : err);
-  availabilityError = 'Gagal memuat data ketersediaan ISP';
-}
-
-// Axis starts just below the lowest value, so the 99 % range is readable and an outage still shows
-const availValues = availability
-  ? [...availability.astinet, ...availability.jlm, ...availability.lintasarta].filter((v): v is number => v !== null)
-  : [];
-const availYMin = availValues.length > 0 ? Math.max(0, Math.floor(Math.min(...availValues)) - 1) : undefined;
-
 const syncTime = traffic?.sync.finishedAt
   ? new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(traffic.sync.finishedAt))
   : null;
-const presetLabel: Record<string, string> = { '24h': '24 jam', '7d': '7 hari' };
+const trafficRangeLabel: Record<string, string> = { '24h': '24 jam', '7d': '7 hari' };
 ---
 
 <Layout>
   <div class="bento">
-    <div class="md:col-span-2 lg:col-span-6">
-      <DateFilter from={selection.dates.from} to={selection.dates.to} />
-    </div>
-
     <!-- Traffic PRTG: hourly In and Out per sensor -->
     <section class="md:col-span-2 lg:col-span-6 space-y-4" aria-labelledby="trafficHeading">
       <div class="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -77,7 +52,7 @@ const presetLabel: Record<string, string> = { '24h': '24 jam', '7d': '7 hari' };
           <h2 id="trafficHeading" class="text-xl font-semibold text-gray-900 dark:text-white">Trafik PRTG</h2>
           {traffic && (
             <p class="text-sm text-gray-600 dark:text-gray-400">
-              Rata-rata per jam, {selection.label} (WIB)
+              Rata-rata per jam, {trafficRangeLabel[trafficRange]} terakhir (WIB)
               {syncTime && <> · Sinkron terakhir: {syncTime}</>}
               {traffic.sync.status === 'partial' && <span class="text-amber-700 dark:text-amber-300"> · Sinkron sebagian ({traffic.sync.errorCount} masalah)</span>}
               {traffic.sync.status === 'failed' && <span class="text-red-700 dark:text-red-300"> · Sinkron terakhir gagal</span>}
@@ -89,20 +64,14 @@ const presetLabel: Record<string, string> = { '24h': '24 jam', '7d': '7 hari' };
           {TRAFFIC_RANGES.map(r => (
             <a
               href={`?range=${r}${trafficSelected !== null ? `&sensor=${trafficSelected}` : ''}`}
-              aria-current={selection.mode === 'rolling' && selection.query === `range=${r}` ? 'page' : undefined}
-              class={`px-3 py-1.5 rounded-md text-sm font-medium border ${selection.mode === 'rolling' && selection.query === `range=${r}` ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+              aria-current={r === trafficRange ? 'page' : undefined}
+              class={`px-3 py-1.5 rounded-md text-sm font-medium border ${r === trafficRange ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
             >
-              {presetLabel[r]}
+              {trafficRangeLabel[r]}
             </a>
           ))}
         </nav>
       </div>
-
-      {selection.clamped && (
-        <p class="text-sm text-amber-700 dark:text-amber-300">
-          Trafik hanya disimpan {TRAFFIC_RETENTION_DAYS} hari terakhir, jadi rentang disesuaikan ke {selection.label}.
-        </p>
-      )}
 
       {trafficError && <DataError message={trafficError} />}
 
@@ -136,37 +105,10 @@ const presetLabel: Record<string, string> = { '24h': '24 jam', '7d': '7 hari' };
           <TrafficSensorDetail
             sensors={traffic.sensors}
             selected={trafficSelected}
-            query={selection.query}
+            range={trafficRange}
             series={trafficSeries}
           />
         </>
-      )}
-    </section>
-
-    <!-- Daily ISP availability from the PRTG daily reports, for the same dates -->
-    <section class="md:col-span-2 lg:col-span-6 space-y-4 mt-4" aria-labelledby="availabilityHeading">
-      <div>
-        <h2 id="availabilityHeading" class="text-xl font-semibold text-gray-900 dark:text-white">Ketersediaan ISP</h2>
-        <p class="text-sm text-gray-600 dark:text-gray-400">Per hari, {selection.dates.from} s/d {selection.dates.to}</p>
-      </div>
-
-      {availabilityError && <DataError message={availabilityError} />}
-
-      {availability && availability.dates.length > 0 ? (
-        <Chart
-          id="availabilityChart"
-          type="line"
-          title="Ketersediaan per Hari (%)"
-          yMin={availYMin}
-          labels={availability.dates}
-          datasets={[
-            { label: 'Astinet', data: availability.astinet, borderColor: '#3b82f6', tension: 0.4, fill: false },
-            { label: 'JLM', data: availability.jlm, borderColor: '#10b981', tension: 0.4, fill: false },
-            { label: 'Lintasarta', data: availability.lintasarta, borderColor: '#8b5cf6', tension: 0.4, fill: false },
-          ]}
-        />
-      ) : (
-        availability && <p class="text-sm text-gray-600 dark:text-gray-400 py-8 text-center">Belum ada data ketersediaan untuk rentang ini.</p>
       )}
     </section>
   </div>

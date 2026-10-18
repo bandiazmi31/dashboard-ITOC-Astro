@@ -1,8 +1,4 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { addDays, jakartaDate } from '../dates';
-
-/** Must match RETENTION_DAYS in prtg-traffic-sync.ts: older hours are deleted, so no history exists before this */
-export const TRAFFIC_RETENTION_DAYS = 30;
 
 /** Hourly labels are shown in the operations team's time zone */
 const LABEL_FORMAT = new Intl.DateTimeFormat('id-ID', {
@@ -58,21 +54,8 @@ export interface TrafficSyncStatus {
   errorCount: number;
 }
 
-/** What the NOC page is showing: the hour window for the traffic queries, and the calendar dates for availability. */
-export interface TrafficSelection {
-  window: TrafficWindow;
-  dates: { from: string; to: string };
-  /** Human-readable period, shown under the section title */
-  label: string;
-  /** Which control is active: a rolling preset or a custom date range */
-  mode: 'rolling' | 'dates';
-  /** True when the requested dates were moved inside the retention window */
-  clamped: boolean;
-  /** Query string that selects the same period, used by the sensor detail fetch */
-  query: string;
-}
-
 export interface TrafficPageData {
+  range: TrafficRange;
   window: TrafficWindow;
   total: TrafficSeries;
   kpis: TrafficKpis;
@@ -99,53 +82,6 @@ export function parseRange(value: string | null): TrafficRange {
   return TRAFFIC_RANGES.find(r => r === value) ?? '7d';
 }
 
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-
-/** Start of a WIB calendar day as an ISO instant. Jakarta has no DST, so the offset is fixed. */
-function wibDayStart(date: string): string {
-  return new Date(`${date}T00:00:00+07:00`).toISOString();
-}
-
-/**
- * Resolves the NOC query into the period to show.
- * `from` and `to` (YYYY-MM-DD, WIB) take precedence over the rolling `range` presets.
- * Dates are clamped to the retention window; `clamped` tells the page when that happened.
- */
-export function resolveTrafficSelection(params: URLSearchParams, now: Date = new Date()): TrafficSelection {
-  const today = jakartaDate(now);
-  const from = params.get('from');
-  const to = params.get('to');
-
-  if (from && to && DATE_PATTERN.test(from) && DATE_PATTERN.test(to) && from <= to) {
-    const earliest = addDays(today, -(TRAFFIC_RETENTION_DAYS - 1));
-    const start = from < earliest ? earliest : from;
-    const end = to > today ? today : to;
-    if (start <= end) {
-      return {
-        window: { from: wibDayStart(start), to: wibDayStart(addDays(end, 1)) },
-        dates: { from: start, to: end },
-        label: `${start} s/d ${end}`,
-        mode: 'dates',
-        clamped: start !== from || end !== to,
-        query: `from=${start}&to=${end}`,
-      };
-    }
-  }
-
-  const range = parseRange(params.get('range'));
-  const dates = range === '24h'
-    ? { from: addDays(today, -1), to: today }
-    : { from: addDays(today, -6), to: today };
-  return {
-    window: trafficWindow(range, now),
-    dates,
-    label: range === '24h' ? '24 jam terakhir' : '7 hari terakhir',
-    mode: 'rolling',
-    clamped: false,
-    query: `range=${range}`,
-  };
-}
-
 function label(iso: string): string {
   return LABEL_FORMAT.format(new Date(iso));
 }
@@ -163,7 +99,9 @@ function maxOf(values: (number | null)[]): number | null {
 }
 
 /** Everything the NOC traffic section needs. Aggregates only; raw rows never reach the page. */
-export async function getTrafficPage(supabase: SupabaseClient, window: TrafficWindow): Promise<TrafficPageData> {
+export async function getTrafficPage(supabase: SupabaseClient, range: TrafficRange): Promise<TrafficPageData> {
+  const window = trafficWindow(range);
+
   const [totalRes, topRes, sensorsRes, syncRes] = await Promise.all([
     supabase.rpc('traffic_total_hourly', { p_from: window.from, p_to: window.to }),
     supabase.rpc('traffic_top_sensors', { p_from: window.from, p_to: window.to, p_n: 10 }),
@@ -189,6 +127,7 @@ export async function getTrafficPage(supabase: SupabaseClient, window: TrafficWi
   const lastSync = (syncRes.data ?? [])[0] as { finished_at: string; status: TrafficSyncStatus['status']; errors: unknown[] } | undefined;
 
   return {
+    range,
     window,
     total: {
       labels: totalRows.map(r => label(r.hour_start)),
@@ -218,12 +157,13 @@ export async function getTrafficPage(supabase: SupabaseClient, window: TrafficWi
   };
 }
 
-/** Hourly In and Out for one sensor over the window. Gaps stay null so the line breaks instead of dropping to zero. */
+/** Hourly In and Out for one sensor over the range. Gaps stay null so the line breaks instead of dropping to zero. */
 export async function getSensorSeries(
   supabase: SupabaseClient,
   sensorId: number,
-  window: TrafficWindow
+  range: TrafficRange
 ): Promise<TrafficSeries> {
+  const window = trafficWindow(range);
   const { data, error } = await supabase.rpc('traffic_sensor_series', {
     p_sensor: sensorId,
     p_from: window.from,
