@@ -8,7 +8,7 @@ import SensorHoneycomb from '../components/SensorHoneycomb.astro';
 import DataError from '../components/DataError.astro';
 import { jakartaDate, jakartaDaysAgo } from '../lib/dates';
 import { createSupabaseServerClient } from '../lib/supabase';
-import { getIspAvailability, type IspAvailabilityDaily } from '../lib/services/prtg-availability';
+import { getNocTrends, type NocTrendsResult } from '../lib/services/analytics';
 import { getSocAggregates } from '../lib/services/soc-reports';
 import { buildSocDashboard, type SocDashboard } from '../lib/services/soc-kpis';
 
@@ -35,15 +35,15 @@ try {
   loadError = 'Gagal memuat data';
 }
 
-// PRTG is reachable only from the office network, so its failure must not hide the SOC cards
-let nocResult: IspAvailabilityDaily | null = null;
+// Kept separate so a failure here does not hide the SOC cards
+let nocResult: NocTrendsResult | null = null;
 let nocError: string | null = null;
 
 try {
-  nocResult = await getIspAvailability(from, to);
+  nocResult = await getNocTrends(supabase, { from, to });
 } catch (err) {
-  console.error('[INDEX] Failed to fetch PRTG availability:', err instanceof Error ? err.message : err);
-  nocError = 'Gagal memuat ketersediaan dari PRTG';
+  console.error('[INDEX] Failed to fetch availability:', err instanceof Error ? err.message : err);
+  nocError = 'Gagal memuat data ketersediaan';
 }
 
 const soc = socResult;
