@@ -8,7 +8,7 @@ import SensorHoneycomb from '../components/SensorHoneycomb.astro';
 import DataError from '../components/DataError.astro';
 import { jakartaDate, jakartaDaysAgo } from '../lib/dates';
 import { createSupabaseServerClient } from '../lib/supabase';
-import { getNocTrends, type NocTrendsResult } from '../lib/services/analytics';
+import { getIspAvailability, type IspAvailabilityDaily } from '../lib/services/prtg-availability';
 import { getSocAggregates } from '../lib/services/soc-reports';
 import { buildSocDashboard, type SocDashboard } from '../lib/services/soc-kpis';
 
@@ -25,23 +25,35 @@ if (!user) {
 }
 
 let socResult: SocDashboard | null = null;
-let nocResult: NocTrendsResult | null = null;
 let loadError: string | null = null;
 
 try {
-  const [aggregates, noc] = await Promise.all([
-    getSocAggregates(supabase, { from, to }),
-    getNocTrends(supabase, { from, to })
-  ]);
+  const aggregates = await getSocAggregates(supabase, { from, to });
   socResult = buildSocDashboard(aggregates, from, to);
-  nocResult = noc;
 } catch (err) {
-  console.error('[INDEX] Failed to fetch dashboard data:', err instanceof Error ? err.message : err);
+  console.error('[INDEX] Failed to fetch SOC data:', err instanceof Error ? err.message : err);
   loadError = 'Gagal memuat data';
+}
+
+// PRTG is reachable only from the office network, so its failure must not hide the SOC cards
+let nocResult: IspAvailabilityDaily | null = null;
+let nocError: string | null = null;
+
+try {
+  nocResult = await getIspAvailability(from, to);
+} catch (err) {
+  console.error('[INDEX] Failed to fetch PRTG availability:', err instanceof Error ? err.message : err);
+  nocError = 'Gagal memuat ketersediaan dari PRTG';
 }
 
 const soc = socResult;
 const noc = nocResult;
+
+// Axis starts just below the lowest value, so the 99 % range is readable and an outage still shows
+const nocValues = noc
+  ? [...noc.astinet, ...noc.jlm, ...noc.lintasarta].filter((v): v is number => v !== null)
+  : [];
+const nocYMin = nocValues.length > 0 ? Math.max(0, Math.floor(Math.min(...nocValues)) - 1) : undefined;
 
 // Indonesian thousands separator, e.g. 12.345
 const formatCount = (n: number) => n.toLocaleString('id-ID');
@@ -56,9 +68,9 @@ const formatCount = (n: number) => n.toLocaleString('id-ID');
 
     {loadError && <div class="md:col-span-2 lg:col-span-6"><DataError message={loadError} /></div>}
 
-    {soc && noc && (
+    <!-- SOC KPI Cards -->
+    {soc && (
       <>
-        <!-- SOC KPI Cards -->
         <div class="lg:col-span-2">
           <KPICard
             label="Total Kejadian Ancaman"
@@ -97,49 +109,57 @@ const formatCount = (n: number) => n.toLocaleString('id-ID');
             status="info"
           />
         </div>
+      </>
+    )}
 
-        <!-- NOC KPI Cards - ISP Availability -->
-        {noc.kpi.ispAvailability.map(isp => (
-          <div class="lg:col-span-2">
-            <KPICardISP
-              ispName={isp.name}
-              actual={isp.actual}
-              sla={isp.sla}
-              status={isp.status}
-            />
-          </div>
-        ))}
+    <!-- NOC KPI Cards - ISP Availability from PRTG -->
+    {noc && noc.kpi.ispAvailability.map(isp => (
+      <div class="lg:col-span-2">
+        <KPICardISP
+          ispName={isp.name}
+          actual={isp.actual}
+          sla={isp.sla}
+          status={isp.status}
+        />
+      </div>
+    ))}
+    {nocError && <div class="md:col-span-2 lg:col-span-6"><DataError message={nocError} /></div>}
 
-        <!-- Trend Charts (SOC & NOC) -->
-        <div class="md:col-span-2 lg:col-span-3">
-          <Chart
-            id="socTrendChart"
-            type="line"
-            title="Kejadian Ancaman per Hari"
-            labels={soc.dates}
-            datasets={[
-              {
-                label: 'Semua Ancaman',
-                data: soc.threats_all,
-                borderColor: '#6366f1',
-                tension: 0.4,
-                fill: false
-              },
-              {
-                label: 'High/Critical',
-                data: soc.threats_high_critical,
-                borderColor: '#ef4444',
-                tension: 0.4,
-                fill: false
-              }
-            ]}
-          />
-        </div>
+    <!-- Trend Charts (SOC & NOC) -->
+    {soc && (
+      <div class="md:col-span-2 lg:col-span-3">
+        <Chart
+          id="socTrendChart"
+          type="line"
+          title="Kejadian Ancaman per Hari"
+          labels={soc.dates}
+          datasets={[
+            {
+              label: 'Semua Ancaman',
+              data: soc.threats_all,
+              borderColor: '#6366f1',
+              tension: 0.4,
+              fill: false
+            },
+            {
+              label: 'High/Critical',
+              data: soc.threats_high_critical,
+              borderColor: '#ef4444',
+              tension: 0.4,
+              fill: false
+            }
+          ]}
+        />
+      </div>
+    )}
+    {noc && (
+      <>
         <div class="md:col-span-2 lg:col-span-3">
           <Chart
             id="nocTrendChart"
             type="line"
             title="Ketersediaan ISP per Hari"
+            yMin={nocYMin}
             labels={noc.dates}
             datasets={[
               {
@@ -167,7 +187,7 @@ const formatCount = (n: number) => n.toLocaleString('id-ID');
           />
         </div>
 
-        <!-- Sensor honeycomb (same source as the NOC page) -->
+        <!-- Sensor honeycomb (same PRTG source as the NOC page) -->
         <div class="md:col-span-2 lg:col-span-6">
           <SensorHoneycomb
             title="Status Kesehatan Sensor"
