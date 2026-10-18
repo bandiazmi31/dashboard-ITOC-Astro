@@ -1,14 +1,15 @@
 ---
-import type { TrafficSensorOption, TrafficSeries, TrafficRange } from '../lib/services/traffic';
+import type { TrafficSensorOption, TrafficSeries } from '../lib/services/traffic';
 
 interface Props {
   sensors: TrafficSensorOption[];
   selected: number | null;
-  range: TrafficRange;
+  /** Query string for the selected period, e.g. "range=7d" or "from=2026-10-10&to=2026-10-17" */
+  query: string;
   series: TrafficSeries | null;
 }
 
-const { sensors, selected, range, series } = Astro.props;
+const { sensors, selected, query, series } = Astro.props;
 const hasSensors = sensors.length > 0;
 ---
 
@@ -19,7 +20,7 @@ const hasSensors = sensors.length > 0;
     <select
       id="trafficSensorSelect"
       data-traffic-select
-      data-range={range}
+      data-query={query}
       disabled={!hasSensors}
       class="max-w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
     >
@@ -112,14 +113,14 @@ const hasSensors = sensors.length > 0;
 
     select.addEventListener('change', async () => {
       const sensorId = select.value;
-      const range = select.dataset.range;
+      const query = select.dataset.query;
       const requestId = ++latestRequest;
       const url = new URL(window.location.href);
       url.searchParams.set('sensor', sensorId);
       window.history.replaceState(null, '', url);
 
       try {
-        const res = await fetch(`/api/noc/traffic-series?sensor=${encodeURIComponent(sensorId)}&range=${encodeURIComponent(range)}`);
+        const res = await fetch(`/api/noc/traffic-series?sensor=${encodeURIComponent(sensorId)}&${query}`);
         if (!res.ok) throw new Error('gagal');
         const series = await res.json();
         if (requestId === latestRequest) draw(series);

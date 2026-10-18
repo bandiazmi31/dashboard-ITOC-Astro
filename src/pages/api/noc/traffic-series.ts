@@ -1,10 +1,10 @@
 import type { APIRoute } from 'astro';
 import { createSupabaseServerClient } from '../../../lib/supabase';
 import { jsonResponse, serverError } from '../../../lib/http';
-import { getSensorSeries, parseRange } from '../../../lib/services/traffic';
+import { getSensorSeries, resolveTrafficSelection } from '../../../lib/services/traffic';
 
 /**
- * GET /api/noc/traffic-series?sensor=2138&range=7d
+ * GET /api/noc/traffic-series?sensor=2138&range=7d  or  ?sensor=2138&from=2026-10-10&to=2026-10-17
  * Hourly In/Out for one sensor, for the sensor detail chart. Requires a logged-in user.
  */
 export const GET: APIRoute = async ({ request, cookies }) => {
@@ -19,7 +19,7 @@ export const GET: APIRoute = async ({ request, cookies }) => {
   }
 
   try {
-    const series = await getSensorSeries(supabase, sensorId, parseRange(params.get('range')));
+    const series = await getSensorSeries(supabase, sensorId, resolveTrafficSelection(params).window);
     return jsonResponse(series);
   } catch (err) {
     return serverError('NOC TRAFFIC SERIES', err);
