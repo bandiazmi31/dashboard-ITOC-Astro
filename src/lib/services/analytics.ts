@@ -36,7 +36,7 @@ export interface NocTrendsResult {
   devices: NocDeviceRow[];
 }
 
-function getIspFromSensor(name: string, device: string): string {
+export function getIspFromSensor(name: string, device: string): string {
   const n = name.toLowerCase();
   if (n.includes('astinet')) return 'Astinet';
   if (n.includes('jlm')) return 'JLM';

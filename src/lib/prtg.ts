@@ -86,6 +86,14 @@ export function fetchHourlyTrafficCsv(objid: number, sdate: string, edate: strin
 }
 
 /**
+ * Daily history for one sensor as CSV. The Downtime column is the percentage of the day the sensor was down.
+ * Availability is 100 minus that. Same wall-clock date format as fetchHourlyTrafficCsv.
+ */
+export function fetchDailyDowntimeCsv(objid: number, sdate: string, edate: string): Promise<string> {
+  return prtgGetText('historicdata.csv', { id: String(objid), avg: '86400', sdate, edate });
+}
+
+/**
  * GET via node:https. PRTG on the office network usually has a self-signed certificate, which the
  * global fetch rejects. Relaxing verification only applies when PRTG_TLS_INSECURE=true.
  */
