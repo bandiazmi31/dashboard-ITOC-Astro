@@ -43,6 +43,21 @@ try {
 const soc = socResult;
 const noc = nocResult;
 
+// One honeycomb cell per sensor, using its most recent day in the range.
+// Key on name and device: two PRTG sensors share the name "JKT - ASTINET" at different devices.
+const latestPerSensor = new Map<string, NonNullable<typeof noc>['devices'][number]>();
+for (const d of noc?.devices ?? []) {
+  const key = `${d.sensor}|${d.device}`;
+  const prev = latestPerSensor.get(key);
+  if (!prev || d.date > prev.date) latestPerSensor.set(key, d);
+}
+const honeycombSensors = [...latestPerSensor.values()].map(d => ({
+  sensorName: d.sensor,
+  location: d.device,
+  availability: d.availability,
+  date: d.date,
+}));
+
 // Indonesian thousands separator, e.g. 12.345
 const formatCount = (n: number) => n.toLocaleString('id-ID');
 ---
@@ -167,16 +182,11 @@ const formatCount = (n: number) => n.toLocaleString('id-ID');
           />
         </div>
 
-        <!-- Sensor honeycomb (same source as the NOC page) -->
+        <!-- Sensor honeycomb: one cell per sensor (same source as the NOC page) -->
         <div class="md:col-span-2 lg:col-span-6">
           <SensorHoneycomb
             title="Status Kesehatan Sensor"
-            sensors={noc.devices.map(d => ({
-              sensorName: d.sensor,
-              location: d.device,
-              availability: d.availability,
-              date: d.date,
-            }))}
+            sensors={honeycombSensors}
           />
         </div>
       </>
