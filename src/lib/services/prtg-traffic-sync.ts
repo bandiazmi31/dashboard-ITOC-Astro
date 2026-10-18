@@ -151,70 +151,58 @@ export async function syncPrtgTraffic(
     .single();
   if (runErr) throw new Error(`prtg_sync_runs: ${runErr.message}`);
 
-  try {
-    const { sensors, skipped } = await fetchTrafficSensors();
-    if (skipped > 0) errors.push(`${skipped} sensor dilewati (data PRTG tidak lengkap)`);
+  const { sensors, skipped } = await fetchTrafficSensors();
+  if (skipped > 0) errors.push(`${skipped} sensor dilewati (data PRTG tidak lengkap)`);
 
-    await upsertChunked(
-      supabase,
-      'prtg_sensors',
-      sensors.map(s => ({
-        sensor_id: s.objid,
-        name: s.sensor,
-        device: s.device,
-        updated_at: new Date().toISOString(),
-      })),
-      'sensor_id'
-    );
+  await upsertChunked(
+    supabase,
+    'prtg_sensors',
+    sensors.map(s => ({
+      sensor_id: s.objid,
+      name: s.sensor,
+      device: s.device,
+      updated_at: new Date().toISOString(),
+    })),
+    'sensor_id'
+  );
 
-    const sdate = prtgWallClock(startMs);
-    const edate = prtgWallClock(endMs);
-    const results = await mapWithConcurrency(sensors, HISTORY_CONCURRENCY, async s => {
-      try {
-        const csv = await fetchHourlyTrafficCsv(s.objid, sdate, edate);
-        const rows = parseSensorCsv(s.objid, csv);
-        await upsertChunked(supabase, 'prtg_traffic_hourly', rows, 'sensor_id,hour_start,channel');
-        return { ok: true as const, rows: rows.length };
-      } catch (err) {
-        // Messages from the PRTG client carry no URL or credentials
-        errors.push(`sensor ${s.objid} (${s.sensor}): ${err instanceof Error ? err.message : String(err)}`);
-        return { ok: false as const, rows: 0 };
-      }
-    });
-    const sensorsOk = results.filter(r => r.ok).length;
-    rowsWritten = results.reduce((sum, r) => sum + r.rows, 0);
+  const sdate = prtgWallClock(startMs);
+  const edate = prtgWallClock(endMs);
+  const results = await mapWithConcurrency(sensors, HISTORY_CONCURRENCY, async s => {
+    try {
+      const csv = await fetchHourlyTrafficCsv(s.objid, sdate, edate);
+      const rows = parseSensorCsv(s.objid, csv);
+      await upsertChunked(supabase, 'prtg_traffic_hourly', rows, 'sensor_id,hour_start,channel');
+      return { ok: true as const, rows: rows.length };
+    } catch (err) {
+      // Messages from the PRTG client carry no URL or credentials
+      errors.push(`sensor ${s.objid} (${s.sensor}): ${err instanceof Error ? err.message : String(err)}`);
+      return { ok: false as const, rows: 0 };
+    }
+  });
+  const sensorsOk = results.filter(r => r.ok).length;
+  rowsWritten = results.reduce((sum, r) => sum + r.rows, 0);
 
-    const cutoff = new Date(endMs - RETENTION_DAYS * 24 * HOUR_MS).toISOString();
-    const { error: retErr } = await supabase.from('prtg_traffic_hourly').delete().lt('hour_start', cutoff);
-    if (retErr) errors.push(`retensi: ${retErr.message}`);
+  const cutoff = new Date(endMs - RETENTION_DAYS * 24 * HOUR_MS).toISOString();
+  const { error: retErr } = await supabase.from('prtg_traffic_hourly').delete().lt('hour_start', cutoff);
+  if (retErr) errors.push(`retensi: ${retErr.message}`);
 
-    const status = errors.length === 0 ? 'success' : sensorsOk > 0 ? 'partial' : 'failed';
-    await supabase.from('prtg_sync_runs').update({
-      finished_at: new Date().toISOString(),
-      status,
-      sensors_seen: sensors.length,
-      rows_written: rowsWritten,
-      errors,
-    }).eq('id', run.id);
+  const status = errors.length === 0 ? 'success' : sensorsOk > 0 ? 'partial' : 'failed';
+  await supabase.from('prtg_sync_runs').update({
+    finished_at: new Date().toISOString(),
+    status,
+    sensors_seen: sensors.length,
+    rows_written: rowsWritten,
+    errors,
+  }).eq('id', run.id);
 
-    return {
-      status,
-      sensors_seen: sensors.length,
-      sensors_ok: sensorsOk,
-      rows_written: rowsWritten,
-      errors,
-      window_start,
-      window_end,
-    };
-  } catch (err) {
-    // Without this, a throw here (e.g. PRTG timeout on the sensor list) leaves the run stuck in 'running'
-    const message = err instanceof Error ? err.message : String(err);
-    await supabase.from('prtg_sync_runs').update({
-      finished_at: new Date().toISOString(),
-      status: 'failed',
-      rows_written: rowsWritten,
-      errors: [...errors, `Sinkron berhenti: ${message}`],
-    }).eq('id', run.id);
-    throw err;
-  }
+  return {
+    status,
+    sensors_seen: sensors.length,
+    sensors_ok: sensorsOk,
+    rows_written: rowsWritten,
+    errors,
+    window_start,
+    window_end,
+  };
 }
