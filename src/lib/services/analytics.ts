@@ -76,25 +76,17 @@ export async function getNocTrends(
 ): Promise<NocTrendsResult> {
   const { from, to } = params;
 
-  // PostgREST returns at most 1000 rows per request, so page through the range
-  const PAGE = 1000;
-  const rows: any[] = [];
-  for (let offset = 0; ; offset += PAGE) {
-    const { data, error } = await supabase
-      .from('prtg_sensor_reports')
-      .select('*')
-      .gte('import_date', from)
-      .lte('import_date', to)
-      .order('import_date', { ascending: true })
-      .order('sensor_id', { ascending: true })
-      .range(offset, offset + PAGE - 1);
+  const { data: prtgData, error } = await supabase
+    .from('prtg_sensor_reports')
+    .select('*')
+    .gte('import_date', from)
+    .lte('import_date', to);
 
-    if (error) {
-      throw new Error(`NOC query failed: ${error.message}`);
-    }
-    rows.push(...(data ?? []));
-    if (!data || data.length < PAGE) break;
+  if (error) {
+    throw new Error(`NOC query failed: ${error.message}`);
   }
+
+  const rows = prtgData ?? [];
   const dates = Array.from(new Set(rows.map((d: any) => d.import_date as string))).sort();
 
   const astinet: (number | null)[] = [];

@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { getNocTrends } from '../../../lib/services/analytics';
+import { getIspAvailability } from '../../../lib/services/prtg-availability';
 import { getCached, setCached } from '../../../lib/cache';
 import { createSupabaseServerClient } from '../../../lib/supabase';
 import { jsonResponse, serverError } from '../../../lib/http';
@@ -9,7 +9,7 @@ const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * GET /api/noc/trends?from=YYYY-MM-DD&to=YYYY-MM-DD
- * Returns daily ISP availability from the database and the KPI summary.
+ * Returns daily ISP availability from PRTG and the KPI summary.
  */
 export const GET: APIRoute = async ({ request, cookies }) => {
   const url = new URL(request.url);
@@ -36,7 +36,7 @@ export const GET: APIRoute = async ({ request, cookies }) => {
   }
 
   try {
-    const result = await getNocTrends(supabase, { from, to });
+    const result = await getIspAvailability(from, to);
 
     // Only successful results are cached; errors are never stored
     setCached(cacheKey, result, 300);
